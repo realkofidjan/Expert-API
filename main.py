@@ -135,6 +135,33 @@ def app(request):
     if path == "/move-from-wishlist-to-cart":
         return move_wishlist_to_cart(request, db, SECRET_KEY)
 
+    if path == "/checkout-items":
+        return checkout_items(request, db, SECRET_KEY)
+
+    if path == "/move-checkout-to-cart":
+        return move_checkout_to_cart(request, db, SECRET_KEY)
+
+    if path == "/process-checkout":
+        return process_checkout(request, db, SECRET_KEY)
+
+    if path == "/confirm-order":
+        return confirm_order(request, db, SECRET_KEY)
+
+    if path == "/cancel-order":
+        return cancel_order(request, db, SECRET_KEY)
+
+    if path == "/set-order-address":
+        return set_order_address(request, db, SECRET_KEY)
+
+    if path == "/confirm-delivery":
+        return confirm_delivery(request, db, SECRET_KEY)
+
+    if path == "/confirm-payment":
+        return confirm_payment(request, db, SECRET_KEY)
+
+    if path == "/get-quote":
+        return request_quote(request, db, SECRET_KEY)
+
     return jsonify({"error": "Endpoint not found"}), 404
 
 
@@ -2031,54 +2058,587 @@ def move_wishlist_to_cart(request, db, SECRET_KEY):
 # -----------------------------------------
 # CHECKOUT ITEMS
 # -----------------------------------------
+def checkout_items(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
 
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        customer_id = payload.get("user_id")
+        if not customer_id:
+            return jsonify({"error": "Invalid user token"}), 401
+
+        data = request.get_json()
+        product_ids = data.get("product_ids")
+        if not product_ids or not isinstance(product_ids, list):
+            return jsonify({"error": "product_ids list is required"}), 400
+
+        customer_ref = db.collection("customers").document(customer_id)
+        checkout_items_list = []
+
+        for product_id in product_ids:
+            cart_item_ref = customer_ref.collection("cart").document(product_id)
+            cart_doc = cart_item_ref.get()
+
+            if not cart_doc.exists:
+                continue
+
+            cart_data = cart_doc.to_dict()
+
+            customer_ref.collection("checkout").document(product_id).set(cart_data)
+            cart_item_ref.delete()
+
+            checkout_items_list.append({"product_id": product_id, **cart_data})
+
+        return jsonify({
+            "message": "Items moved to checkout",
+            "checkout_items": checkout_items_list
+        }), 200
+
+    except Exception as e:
+        print("CHECKOUT ITEMS ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 
 # -----------------------------------------
 # MOVE CHECKOUT ITEMS BACK TO CART
 # -----------------------------------------
+def move_checkout_to_cart(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
 
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        customer_id = payload.get("user_id")
+        if not customer_id:
+            return jsonify({"error": "Invalid user token"}), 401
+
+        data = request.get_json()
+        product_ids = data.get("product_ids") if data else None
+
+        customer_ref = db.collection("customers").document(customer_id)
+        moved_items = []
+
+        if product_ids and isinstance(product_ids, list):
+            checkout_docs = [
+                customer_ref.collection("checkout").document(pid).get()
+                for pid in product_ids
+            ]
+        else:
+            checkout_docs = list(customer_ref.collection("checkout").stream())
+
+        for doc in checkout_docs:
+            if not doc.exists:
+                continue
+
+            checkout_data = doc.to_dict()
+            product_id = doc.id
+
+            cart_item_ref = customer_ref.collection("cart").document(product_id)
+            cart_doc = cart_item_ref.get()
+
+            if cart_doc.exists:
+                cart_item_ref.update({
+                    "quantity": cart_doc.to_dict().get("quantity", 1) + checkout_data.get("quantity", 1),
+                    "updated_at": firestore.SERVER_TIMESTAMP
+                })
+            else:
+                cart_item_ref.set(checkout_data)
+
+            doc.reference.delete()
+            moved_items.append(product_id)
+
+        return jsonify({
+            "message": "Items moved back to cart",
+            "moved_product_ids": moved_items
+        }), 200
+
+    except Exception as e:
+        print("MOVE CHECKOUT TO CART ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 
 # -----------------------------------------
 # PROCESS CHECKOUT (ORDER - QUOTE)
 # -----------------------------------------
+def process_checkout(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
 
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        customer_id = payload.get("user_id")
+        if not customer_id:
+            return jsonify({"error": "Invalid user token"}), 401
+
+        customer_ref = db.collection("customers").document(customer_id)
+        checkout_docs = list(customer_ref.collection("checkout").stream())
+
+        if not checkout_docs:
+            return jsonify({"error": "No items in checkout"}), 400
+
+        order_items = []
+        subtotal = 0.0
+
+        for doc in checkout_docs:
+            checkout_data = doc.to_dict()
+            product_id = doc.id
+            quantity = checkout_data.get("quantity", 1)
+
+            product_doc = db.collection("products").document(product_id).get()
+            if not product_doc.exists:
+                continue
+
+            product_data = product_doc.to_dict()
+            price = float(product_data.get("price", 0))
+            line_total = price * quantity
+
+            order_items.append({
+                "product_id": product_id,
+                "name": product_data.get("name", ""),
+                "sku": product_data.get("sku", ""),
+                "price": price,
+                "quantity": quantity
+            })
+
+            subtotal += line_total
+
+        if not order_items:
+            return jsonify({"error": "No valid products found in checkout"}), 400
+
+        order_id = str(uuid.uuid4())
+        payment_due_date = datetime.datetime.utcnow() + datetime.timedelta(days=30)
+
+        order_data = {
+            "customer_id": customer_id,
+            "items": order_items,
+            "subtotal": subtotal,
+            "status": "quoted",
+            "delivery_address": None,
+            "payment_due_date": payment_due_date,
+            "created_at": firestore.SERVER_TIMESTAMP,
+            "updated_at": firestore.SERVER_TIMESTAMP
+        }
+
+        db.collection("orders").document(order_id).set(order_data)
+
+        for doc in checkout_docs:
+            doc.reference.delete()
+
+        return jsonify({
+            "message": "Order created",
+            "order_id": order_id,
+            "items": order_items,
+            "subtotal": subtotal
+        }), 201
+
+    except Exception as e:
+        print("PROCESS CHECKOUT ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 
 # -----------------------------------------
 # CONFIRM ORDER
 # -----------------------------------------
+def confirm_order(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
 
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        user_id = payload.get("user_id")
+        role = payload.get("role")
+
+        data = request.get_json()
+        order_id = data.get("order_id")
+        if not order_id:
+            return jsonify({"error": "order_id is required"}), 400
+
+        order_ref = db.collection("orders").document(order_id)
+        order_doc = order_ref.get()
+
+        if not order_doc.exists:
+            return jsonify({"error": "Order not found"}), 404
+
+        order_data = order_doc.to_dict()
+
+        is_admin = role in ["admin", "sub-admin", "super-admin"]
+        is_owner = order_data.get("customer_id") == user_id
+
+        if not is_admin and not is_owner:
+            return jsonify({"error": "Unauthorized"}), 403
+
+        if order_data.get("status") != "quoted":
+            return jsonify({"error": "Order can only be confirmed when status is 'quoted'"}), 400
+
+        order_ref.update({
+            "status": "confirmed",
+            "updated_at": firestore.SERVER_TIMESTAMP
+        })
+
+        return jsonify({
+            "message": "Order confirmed",
+            "order_id": order_id,
+            "status": "confirmed"
+        }), 200
+
+    except Exception as e:
+        print("CONFIRM ORDER ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 
 # -----------------------------------------
 # CANCEL ORDER
 # -----------------------------------------
+def cancel_order(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
 
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        user_id = payload.get("user_id")
+        role = payload.get("role")
+
+        data = request.get_json()
+        order_id = data.get("order_id")
+        if not order_id:
+            return jsonify({"error": "order_id is required"}), 400
+
+        order_ref = db.collection("orders").document(order_id)
+        order_doc = order_ref.get()
+
+        if not order_doc.exists:
+            return jsonify({"error": "Order not found"}), 404
+
+        order_data = order_doc.to_dict()
+
+        is_admin = role in ["admin", "sub-admin", "super-admin"]
+        is_owner = order_data.get("customer_id") == user_id
+
+        if not is_admin and not is_owner:
+            return jsonify({"error": "Unauthorized"}), 403
+
+        if order_data.get("status") not in ["quoted", "confirmed"]:
+            return jsonify({"error": "Order can only be cancelled when status is 'quoted' or 'confirmed'"}), 400
+
+        order_ref.update({
+            "status": "cancelled",
+            "updated_at": firestore.SERVER_TIMESTAMP
+        })
+
+        return jsonify({
+            "message": "Order cancelled",
+            "order_id": order_id,
+            "status": "cancelled"
+        }), 200
+
+    except Exception as e:
+        print("CANCEL ORDER ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 
 # -----------------------------------------
-# SET DELIVERY ADDRESS FOR ORDER (MANUAL ENTRY OR AUTOMATIC FROM ADDRESS BOOK)
+# SET DELIVERY ADDRESS FOR ORDER
 # -----------------------------------------
+def set_order_address(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
 
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        customer_id = payload.get("user_id")
+        if not customer_id:
+            return jsonify({"error": "Invalid user token"}), 401
+
+        data = request.get_json()
+        order_id = data.get("order_id")
+        if not order_id:
+            return jsonify({"error": "order_id is required"}), 400
+
+        order_ref = db.collection("orders").document(order_id)
+        order_doc = order_ref.get()
+
+        if not order_doc.exists:
+            return jsonify({"error": "Order not found"}), 404
+
+        order_data = order_doc.to_dict()
+        if order_data.get("customer_id") != customer_id:
+            return jsonify({"error": "Unauthorized"}), 403
+
+        address_id = data.get("address_id")
+
+        if address_id:
+            address_doc = (
+                db.collection("customers")
+                .document(customer_id)
+                .collection("addresses")
+                .document(address_id)
+                .get()
+            )
+            if not address_doc.exists:
+                return jsonify({"error": "Address not found"}), 404
+
+            address_data = address_doc.to_dict()
+            delivery_address = {
+                "address_line1": address_data.get("address_line1", ""),
+                "address_line2": address_data.get("address_line2", ""),
+                "city": address_data.get("city", ""),
+                "region": address_data.get("region", ""),
+                "country": address_data.get("country", ""),
+                "delivery_instructions": address_data.get("delivery_instructions", "")
+            }
+        else:
+            if not data.get("address_line1") or not data.get("city") or not data.get("country"):
+                return jsonify({"error": "address_line1, city, and country are required"}), 400
+
+            delivery_address = {
+                "address_line1": data.get("address_line1", ""),
+                "address_line2": data.get("address_line2", ""),
+                "city": data.get("city", ""),
+                "region": data.get("region", ""),
+                "country": data.get("country", ""),
+                "delivery_instructions": data.get("delivery_instructions", "")
+            }
+
+        order_ref.update({
+            "delivery_address": delivery_address,
+            "updated_at": firestore.SERVER_TIMESTAMP
+        })
+
+        return jsonify({
+            "message": "Delivery address set",
+            "order_id": order_id,
+            "delivery_address": delivery_address
+        }), 200
+
+    except Exception as e:
+        print("SET ORDER ADDRESS ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 
 # -----------------------------------------
-# CONFRIM DELIVERY
+# CONFIRM DELIVERY
 # -----------------------------------------
+def confirm_delivery(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
 
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        role = payload.get("role")
+        if role not in ["admin", "sub-admin", "super-admin"]:
+            return jsonify({"error": "Unauthorized"}), 403
+
+        data = request.get_json()
+        order_id = data.get("order_id")
+        if not order_id:
+            return jsonify({"error": "order_id is required"}), 400
+
+        order_ref = db.collection("orders").document(order_id)
+        order_doc = order_ref.get()
+
+        if not order_doc.exists:
+            return jsonify({"error": "Order not found"}), 404
+
+        order_data = order_doc.to_dict()
+
+        if order_data.get("status") != "confirmed":
+            return jsonify({"error": "Order can only be marked delivered when status is 'confirmed'"}), 400
+
+        order_ref.update({
+            "status": "delivered",
+            "updated_at": firestore.SERVER_TIMESTAMP
+        })
+
+        return jsonify({
+            "message": "Delivery confirmed",
+            "order_id": order_id,
+            "status": "delivered"
+        }), 200
+
+    except Exception as e:
+        print("CONFIRM DELIVERY ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 
 # -----------------------------------------
-# CONFIRM PAYMENT (CLIENTS ARE GIVEN UP TO A MONTH)
+# CONFIRM PAYMENT
 # -----------------------------------------
+def confirm_payment(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
 
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        role = payload.get("role")
+        if role not in ["admin", "sub-admin", "super-admin"]:
+            return jsonify({"error": "Unauthorized"}), 403
+
+        data = request.get_json()
+        order_id = data.get("order_id")
+        if not order_id:
+            return jsonify({"error": "order_id is required"}), 400
+
+        order_ref = db.collection("orders").document(order_id)
+        order_doc = order_ref.get()
+
+        if not order_doc.exists:
+            return jsonify({"error": "Order not found"}), 404
+
+        order_data = order_doc.to_dict()
+
+        if order_data.get("status") != "delivered":
+            return jsonify({"error": "Payment can only be confirmed when status is 'delivered'"}), 400
+
+        order_ref.update({
+            "status": "paid",
+            "updated_at": firestore.SERVER_TIMESTAMP
+        })
+
+        return jsonify({
+            "message": "Payment confirmed",
+            "order_id": order_id,
+            "status": "paid"
+        }), 200
+
+    except Exception as e:
+        print("CONFIRM PAYMENT ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 
 # -----------------------------------------
 # GET QUOTE (NON-CART ITEM)
 # -----------------------------------------
+def request_quote(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
 
+        token = auth_header.split(" ")[1]
 
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        customer_id = payload.get("user_id")
+        if not customer_id:
+            return jsonify({"error": "Invalid user token"}), 401
+
+        data = request.get_json()
+        item_description = data.get("item_description")
+        if not item_description:
+            return jsonify({"error": "item_description is required"}), 400
+
+        quantity = int(data.get("quantity", 1))
+        notes = data.get("notes", "")
+
+        quote_id = str(uuid.uuid4())
+
+        quote_data = {
+            "customer_id": customer_id,
+            "item_description": item_description,
+            "quantity": quantity,
+            "notes": notes,
+            "status": "pending",
+            "admin_response": None,
+            "quoted_price": None,
+            "created_at": firestore.SERVER_TIMESTAMP,
+            "updated_at": firestore.SERVER_TIMESTAMP
+        }
+
+        db.collection("quotes").document(quote_id).set(quote_data)
+
+        return jsonify({
+            "message": "Quote request submitted",
+            "quote_id": quote_id
+        }), 201
+
+    except Exception as e:
+        print("REQUEST QUOTE ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
