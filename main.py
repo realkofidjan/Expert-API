@@ -111,6 +111,9 @@ def app(request):
     if path == "/batch-product-upload":
         return batch_upload_products(request, db, bucket, SECRET_KEY)
 
+    if path == "/get-cart-items":
+        return get_cart_items(request, db, SECRET_KEY)
+
     if path == "/add-to-cart":
         return add_to_cart(request, db, SECRET_KEY)
 
@@ -1576,6 +1579,51 @@ def batch_upload_products(request, db, bucket, SECRET_KEY):
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
+
+
+# -----------------------------------------
+# GET CART ITEMS
+# -----------------------------------------
+def get_cart_items(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
+
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        customer_id = payload.get("user_id")
+        if not customer_id:
+            return jsonify({"error": "Invalid user token"}), 401
+
+        cart_ref = (
+            db.collection("customers")
+            .document(customer_id)
+            .collection("cart")
+        )
+
+        cart_items = []
+        for doc in cart_ref.stream():
+            item = doc.to_dict()
+            item["product_id"] = doc.id
+            cart_items.append(item)
+
+        return jsonify({
+            "cart_items": cart_items,
+            "total_items": len(cart_items)
+        }), 200
+
+    except Exception as e:
+        print("GET CART ITEMS ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
 
 
 # -----------------------------------------

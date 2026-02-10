@@ -56,6 +56,7 @@ A cloud-native e-commerce REST API built with Python and Flask, deployed on Goog
 ### Cart
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| GET | `/get-cart-items` | List all items in the cart |
 | POST | `/add-to-cart` | Add a product to the cart |
 | PUT | `/update-cart-quantity` | Update item quantity |
 | DELETE | `/delete-from-cart` | Remove an item from the cart |
