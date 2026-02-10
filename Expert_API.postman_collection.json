@@ -1,0 +1,1652 @@
+{
+  "info": {
+    "_postman_id": "37b80e81-e207-44aa-95f7-cf0f74f71096",
+    "name": "Expert API",
+    "description": "Complete e-commerce API — auth, products, cart, checkout, orders, quotes.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "26457268",
+    "_collection_link": "https://go.postman.co/collection/26457268-37b80e81-e207-44aa-95f7-cf0f74f71096?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Signup",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.token) {",
+                  "        pm.collectionVariables.set('customer_token', json.token);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"first_name\": \"John\",\n    \"last_name\": \"Doe\",\n    \"email\": \"john@example.com\",\n    \"password\": \"password123\",\n    \"phone\": \"+233501234567\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/signup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "signup"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login (Customer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.token) {",
+                  "        pm.collectionVariables.set('customer_token', json.token);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"nana@example.com\",\n    \"password\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.token) {",
+                  "        pm.collectionVariables.set('admin_token', json.token);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@test.com\",\n    \"password\": \"00001\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "login"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "Add Category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.category_id) {",
+                  "        pm.collectionVariables.set('category_id', json.category_id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Electronics\",\n    \"description\": \"Electronic devices and accessories\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/add-category",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "add-category"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/list-categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "list-categories"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Edit Category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"category_id\": \"{{category_id}}\",\n    \"name\": \"Electronics & Gadgets\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/edit-category",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "edit-category"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"category_id\": \"{{category_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/delete-category",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "delete-category"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Subcategories",
+      "item": [
+        {
+          "name": "Add Subcategory",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.subcategory_id) {",
+                  "        pm.collectionVariables.set('subcategory_id', json.subcategory_id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"category_id\": \"{{category_id}}\",\n    \"name\": \"Laptops\",\n    \"description\": \"Laptop computers and notebooks\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/add-subcategory",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "add-subcategory"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Subcategories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"category_id\": \"{{category_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/list-subcategories?category_id={{category_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "list-subcategories"
+              ],
+              "query": [
+                {
+                  "key": "category_id",
+                  "value": "{{category_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Edit Subcategory",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"category_id\": \"{{category_id}}\",\n    \"subcategory_id\": \"{{subcategory_id}}\",\n    \"name\": \"Gaming Laptops\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/edit-subcategory",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "edit-subcategory"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Subcategory",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"category_id\": \"{{category_id}}\",\n    \"subcategory_id\": \"{{subcategory_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/delete-subcategory",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "delete-subcategory"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "Create Product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.product_id) {",
+                  "        pm.collectionVariables.set('product_id', json.product_id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "name",
+                  "value": "Wireless Mouse",
+                  "type": "text"
+                },
+                {
+                  "key": "sku",
+                  "value": "WM-001",
+                  "type": "text"
+                },
+                {
+                  "key": "category_name",
+                  "value": "Electronics",
+                  "type": "text"
+                },
+                {
+                  "key": "subcategory_name",
+                  "value": "Accessories",
+                  "type": "text"
+                },
+                {
+                  "key": "price",
+                  "value": "29.99",
+                  "type": "text"
+                },
+                {
+                  "key": "stock",
+                  "value": "100",
+                  "type": "text"
+                },
+                {
+                  "key": "brand",
+                  "value": "TechBrand",
+                  "type": "text"
+                },
+                {
+                  "key": "description",
+                  "value": "Ergonomic wireless mouse",
+                  "type": "text"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "value": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/create-product",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "create-product"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/get-product?product_id={{product_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "get-product"
+              ],
+              "query": [
+                {
+                  "key": "product_id",
+                  "value": "{{product_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/get-all-products",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "get-all-products"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add Product Images",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "product_id",
+                  "value": "{{product_id}}",
+                  "type": "text"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "value": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/add-product-images",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "add-product-images"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Product Image",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"product_id\": \"{{product_id}}\",\n    \"image_urls\": [\"https://storage.googleapis.com/expert-images/products/example.jpg\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/delete-product-image",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "delete-product-image"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Batch Product Upload",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "value": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/batch-product-upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "batch-product-upload"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Product",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/delete-product?product_id={{product_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "delete-product"
+              ],
+              "query": [
+                {
+                  "key": "product_id",
+                  "value": "{{product_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Addresses",
+      "item": [
+        {
+          "name": "Add Address",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.address_id) {",
+                  "        pm.collectionVariables.set('address_id', json.address_id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"address_line1\": \"123 Main Street\",\n    \"address_line2\": \"Apt 4B\",\n    \"city\": \"Accra\",\n    \"region\": \"Greater Accra\",\n    \"country\": \"Ghana\",\n    \"delivery_instructions\": \"Ring the bell twice\",\n    \"is_default\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/add-address",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "add-address"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Addresses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/list-addresses",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "list-addresses"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Edit Address",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"address_id\": \"{{address_id}}\",\n    \"address_line1\": \"456 New Street\",\n    \"city\": \"Kumasi\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/edit-address",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "edit-address"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Address",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"address_id\": \"{{address_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/delete-address",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "delete-address"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Add Notification",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.notification_ids && json.notification_ids.length > 0) {",
+                  "        pm.collectionVariables.set('notification_id', json.notification_ids[0]);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"New Sale!\",\n    \"message\": \"Check out our latest deals\",\n    \"type\": \"promo\",\n    \"reference_type\": \"campaign\",\n    \"reference_id\": \"summer-2025\",\n    \"user_ids\": [\"customer-user-id-here\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/add-notification",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "add-notification"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/list-notifications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "list-notifications"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Notification Read",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"notification_id\": \"{{notification_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/mark-notification-read",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "mark-notification-read"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Cart",
+      "item": [
+        {
+          "name": "Add to Cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"product_id\": \"{{product_id}}\",\n    \"quantity\": 2\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/add-to-cart",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "add-to-cart"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Cart Items",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/get-cart-items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "get-cart-items"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Cart Quantity",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"product_id\": \"{{product_id}}\",\n    \"quantity\": 5\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/update-cart-quantity",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "update-cart-quantity"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete from Cart",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/delete-from-cart?product_id={{product_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "delete-from-cart"
+              ],
+              "query": [
+                {
+                  "key": "product_id",
+                  "value": "{{product_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Clear Cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/clear-cart",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clear-cart"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Wishlist",
+      "item": [
+        {
+          "name": "Add to Wishlist",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/add-to-wishlist?product_id={{product_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "add-to-wishlist"
+              ],
+              "query": [
+                {
+                  "key": "product_id",
+                  "value": "{{product_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete from Wishlist",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/delete-from-wishlist?product_id={{product_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "delete-from-wishlist"
+              ],
+              "query": [
+                {
+                  "key": "product_id",
+                  "value": "{{product_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Clear Wishlist",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/clear-wishlist",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "clear-wishlist"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Move Wishlist to Cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/move-from-wishlist-to-cart?product_id={{product_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "move-from-wishlist-to-cart"
+              ],
+              "query": [
+                {
+                  "key": "product_id",
+                  "value": "{{product_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Checkout",
+      "item": [
+        {
+          "name": "Checkout Items",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"product_ids\": [\"{{product_id}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/checkout-items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "checkout-items"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Move Checkout to Cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"product_ids\": [\"{{product_id}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/move-checkout-to-cart",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "move-checkout-to-cart"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Process Checkout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.order_id) {",
+                  "        pm.collectionVariables.set('order_id', json.order_id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/process-checkout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "process-checkout"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Set Order Address (from address book)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"order_id\": \"{{order_id}}\",\n    \"address_id\": \"{{address_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/set-order-address",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "set-order-address"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Set Order Address (manual)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"order_id\": \"{{order_id}}\",\n    \"address_line1\": \"789 Delivery Lane\",\n    \"address_line2\": \"Suite 10\",\n    \"city\": \"Accra\",\n    \"region\": \"Greater Accra\",\n    \"country\": \"Ghana\",\n    \"delivery_instructions\": \"Leave at the gate\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/set-order-address",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "set-order-address"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm Order (Customer)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"order_id\": \"{{order_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/confirm-order",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "confirm-order"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm Order (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"order_id\": \"{{order_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/confirm-order",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "confirm-order"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Order (Customer)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"order_id\": \"{{order_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/cancel-order",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cancel-order"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Order (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"order_id\": \"{{order_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/cancel-order",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cancel-order"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm Delivery (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"order_id\": \"{{order_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/confirm-delivery",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "confirm-delivery"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm Payment (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"order_id\": \"{{order_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/confirm-payment",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "confirm-payment"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Quotes",
+      "item": [
+        {
+          "name": "Request Quote",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.quote_id) {",
+                  "        pm.collectionVariables.set('quote_id', json.quote_id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customer_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"item_description\": \"Custom engraved wooden desk plaque\",\n    \"quantity\": 10,\n    \"notes\": \"Need by end of March, gold lettering preferred\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/get-quote",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "get-quote"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "requests": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "admin_token",
+      "value": ""
+    },
+    {
+      "key": "customer_token",
+      "value": ""
+    },
+    {
+      "key": "product_id",
+      "value": ""
+    },
+    {
+      "key": "order_id",
+      "value": ""
+    },
+    {
+      "key": "quote_id",
+      "value": ""
+    },
+    {
+      "key": "address_id",
+      "value": ""
+    },
+    {
+      "key": "category_id",
+      "value": ""
+    },
+    {
+      "key": "notification_id",
+      "value": ""
+    },
+    {
+      "key": "subcategory_id",
+      "value": ""
+    }
+  ]
+}

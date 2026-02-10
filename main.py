@@ -90,6 +90,18 @@ def app(request):
     if path == "/delete-category":
         return delete_category(request_json)
 
+    if path == "/add-subcategory":
+        return add_subcategory(request_json)
+
+    if path == "/edit-subcategory":
+        return edit_subcategory(request_json)
+
+    if path == "/delete-subcategory":
+        return delete_subcategory(request_json)
+
+    if path == "/list-subcategories":
+        return list_subcategories(request_json)
+
     if path == "/create-product":
         return create_product(request)
     
@@ -810,6 +822,192 @@ def delete_category(data):
     category_ref.delete()
 
     return jsonify({"message": "Category deleted successfully"}), 200
+
+
+# -----------------------------------------
+# ADD SUBCATEGORY (ADMIN ONLY)
+# -----------------------------------------
+def add_subcategory(data):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Authorization token required"}), 401
+
+    token = auth_header.split(" ")[1]
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        role = payload.get("role")
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Invalid token"}), 401
+
+    if role not in ["admin", "sub-admin", "super-admin"]:
+        return jsonify({"error": "Only admins can manage subcategories"}), 403
+
+    category_id = data.get("category_id")
+    if not category_id:
+        return jsonify({"error": "Missing field: category_id"}), 400
+
+    if "name" not in data:
+        return jsonify({"error": "Missing field: name"}), 400
+
+    parent_ref = db.collection("categories").document(category_id)
+    if not parent_ref.get().exists:
+        return jsonify({"error": "Parent category not found"}), 404
+
+    subcategory_id = str(uuid.uuid4())
+    subcategory_data = {
+        "name": data["name"],
+        "description": data.get("description", ""),
+        "created_at": firestore.SERVER_TIMESTAMP,
+        "updated_at": firestore.SERVER_TIMESTAMP
+    }
+
+    parent_ref.collection("subcategories").document(subcategory_id).set(subcategory_data)
+
+    return jsonify({
+        "message": "Subcategory added successfully",
+        "subcategory_id": subcategory_id,
+        "category_id": category_id
+    }), 201
+
+
+# -----------------------------------------
+# EDIT SUBCATEGORY (ADMIN ONLY)
+# -----------------------------------------
+def edit_subcategory(data):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Authorization token required"}), 401
+
+    token = auth_header.split(" ")[1]
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        role = payload.get("role")
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Invalid token"}), 401
+
+    if role not in ["admin", "sub-admin", "super-admin"]:
+        return jsonify({"error": "Only admins can edit subcategories"}), 403
+
+    category_id = data.get("category_id")
+    subcategory_id = data.get("subcategory_id")
+
+    if not category_id:
+        return jsonify({"error": "Missing field: category_id"}), 400
+    if not subcategory_id:
+        return jsonify({"error": "Missing field: subcategory_id"}), 400
+
+    update_data = {}
+    if "name" in data:
+        update_data["name"] = data["name"]
+    if "description" in data:
+        update_data["description"] = data["description"]
+
+    if not update_data:
+        return jsonify({"error": "No fields to update"}), 400
+
+    update_data["updated_at"] = firestore.SERVER_TIMESTAMP
+
+    sub_ref = (
+        db.collection("categories")
+        .document(category_id)
+        .collection("subcategories")
+        .document(subcategory_id)
+    )
+
+    if not sub_ref.get().exists:
+        return jsonify({"error": "Subcategory not found"}), 404
+
+    sub_ref.update(update_data)
+
+    return jsonify({"message": "Subcategory updated successfully"}), 200
+
+
+# -----------------------------------------
+# DELETE SUBCATEGORY (ADMIN ONLY)
+# -----------------------------------------
+def delete_subcategory(data):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Authorization token required"}), 401
+
+    token = auth_header.split(" ")[1]
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        role = payload.get("role")
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Invalid token"}), 401
+
+    if role not in ["admin", "sub-admin", "super-admin"]:
+        return jsonify({"error": "Only admins can delete subcategories"}), 403
+
+    category_id = data.get("category_id")
+    subcategory_id = data.get("subcategory_id")
+
+    if not category_id:
+        return jsonify({"error": "Missing field: category_id"}), 400
+    if not subcategory_id:
+        return jsonify({"error": "Missing field: subcategory_id"}), 400
+
+    sub_ref = (
+        db.collection("categories")
+        .document(category_id)
+        .collection("subcategories")
+        .document(subcategory_id)
+    )
+
+    if not sub_ref.get().exists:
+        return jsonify({"error": "Subcategory not found"}), 404
+
+    sub_ref.delete()
+
+    return jsonify({"message": "Subcategory deleted successfully"}), 200
+
+
+# -----------------------------------------
+# LIST SUBCATEGORIES FOR A CATEGORY
+# -----------------------------------------
+def list_subcategories(data):
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return jsonify({"error": "Authorization token required"}), 401
+
+    token = auth_header.split(" ")[1]
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except jwt.ExpiredSignatureError:
+        return jsonify({"error": "Token has expired"}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({"error": "Invalid token"}), 401
+
+    category_id = data.get("category_id") or request.args.get("category_id")
+    if not category_id:
+        return jsonify({"error": "Missing field: category_id"}), 400
+
+    parent_ref = db.collection("categories").document(category_id)
+    if not parent_ref.get().exists:
+        return jsonify({"error": "Category not found"}), 404
+
+    sub_docs = parent_ref.collection("subcategories").get()
+    subcategories = []
+    for sub in sub_docs:
+        sub_data = sub.to_dict()
+        sub_data["subcategory_id"] = sub.id
+        subcategories.append(sub_data)
+
+    return jsonify({
+        "category_id": category_id,
+        "subcategories": subcategories
+    }), 200
 
 
 # -----------------------------------------

@@ -48,10 +48,18 @@ A cloud-native e-commerce REST API built with Python and Flask, deployed on Goog
 ### Categories
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/add-category` | Create a category or subcategory |
+| POST | `/add-category` | Create a category |
 | GET | `/list-categories` | List all categories with subcategories |
-| PUT | `/edit-category` | Update a category or subcategory |
-| DELETE | `/delete-category` | Remove a category or subcategory |
+| PUT | `/edit-category` | Update a category |
+| DELETE | `/delete-category` | Remove a category |
+
+### Subcategories
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/add-subcategory` | Add a subcategory to a category |
+| GET | `/list-subcategories` | List subcategories for a category |
+| PUT | `/edit-subcategory` | Update a subcategory |
+| DELETE | `/delete-subcategory` | Remove a subcategory |
 
 ### Cart
 | Method | Endpoint | Description |
