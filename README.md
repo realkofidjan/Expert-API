@@ -18,6 +18,10 @@ A cloud-native e-commerce REST API built with Python and Flask, deployed on Goog
 - **Batch Product Upload** — Bulk import products from Excel/CSV files with Google Drive image support
 - **Shopping Cart** — Add, update quantity, remove items, and clear cart
 - **Wishlist** — Save products, remove them, or move directly to cart
+- **Checkout & Orders** — Multi-step checkout flow with order lifecycle (quoted → confirmed → delivered → paid)
+- **Delivery** — Set delivery addresses on orders from address book or manual entry, admin delivery confirmation
+- **Payments** — Admin-confirmed payments with a 30-day payment window
+- **Quotes** — Request quotes for non-catalog items with admin response tracking
 - **Address Management** — Multiple delivery addresses per user with default address handling
 - **Notifications** — Admin-driven notification system with read/unread tracking
 - **Image Handling** — Multi-image upload per product (JPG/PNG), stored in GCS with public URLs
@@ -65,6 +69,27 @@ A cloud-native e-commerce REST API built with Python and Flask, deployed on Goog
 | DELETE | `/clear-wishlist` | Clear the entire wishlist |
 | POST | `/move-from-wishlist-to-cart` | Move an item from wishlist to cart |
 
+### Checkout
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/checkout-items` | Move selected cart items to checkout staging |
+| POST | `/move-checkout-to-cart` | Move checkout items back to cart |
+| POST | `/process-checkout` | Create an order from checkout items |
+
+### Orders
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| PUT | `/confirm-order` | Confirm a quoted order |
+| PUT | `/cancel-order` | Cancel a quoted or confirmed order |
+| PUT | `/set-order-address` | Set delivery address on an order |
+| PUT | `/confirm-delivery` | Mark an order as delivered (admin) |
+| PUT | `/confirm-payment` | Mark an order as paid (admin) |
+
+### Quotes
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/get-quote` | Request a quote for a non-cart item |
+
 ### Addresses
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -91,14 +116,16 @@ Google Cloud Function (HTTP trigger)
     ▼
 Flask Router ──► JWT Auth Middleware ──► Role Check
     │
-    ├──► Firestore (users, products, categories, carts, wishlists)
+    ├──► Firestore (users, products, categories, carts, wishlists, orders, quotes)
     └──► Cloud Storage (product images)
 ```
 
 **Data Model:**
-- `customers` — user profiles with subcollections for addresses, notifications, cart, and wishlist
+- `customers` — user profiles with subcollections for addresses, notifications, cart, checkout, and wishlist
 - `products` — product catalog with images stored in GCS
 - `categories` — hierarchical categories with subcategories
+- `orders` — order records with items, subtotal, status, delivery address, and payment due date
+- `quotes` — quote requests for non-catalog items with admin response tracking
 
 ## Setup
 
