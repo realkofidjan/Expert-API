@@ -1759,7 +1759,7 @@ def batch_upload_products(request, db, bucket, SECRET_KEY):
         else:
             return jsonify({"error": "File must be CSV or Excel"}), 400
 
-        required_columns = ["name", "sku", "category_name", "subcategory_name", "price"]
+        required_columns = ["Name", "SKU", "Category", "Subcategory", "Price"]
         for col in required_columns:
             if col not in df.columns:
                 return jsonify({"error": f"Missing required column: {col}"}), 400
@@ -1769,23 +1769,23 @@ def batch_upload_products(request, db, bucket, SECRET_KEY):
 
         for index, row in df.iterrows():
             try:
-                name = str(row["name"]).strip()
-                sku = str(row["sku"]).strip()
-                category_name = str(row["category_name"]).strip()
-                subcategory_name = str(row["subcategory_name"]).strip()
-                price = float(row["price"])
-                stock = int(row["stock"]) if "stock" in row and not pd.isna(row["stock"]) else 0
-                brand = str(row["brand"]).strip() if "brand" in row and not pd.isna(row["brand"]) else ""
-                color = str(row["color"]).strip() if "color" in row and not pd.isna(row["color"]) else ""
-                description = str(row["description"]).strip() if "description" in row and not pd.isna(row["description"]) else ""
-                dimensions = str(row["dimensions"]).strip() if "dimensions" in row and not pd.isna(row["dimensions"]) else ""
+                name = str(row["Name"]).strip()
+                sku = str(row["SKU"]).strip()
+                category_name = str(row["Category"]).strip()
+                subcategory_name = str(row["Subcategory"]).strip()
+                price = float(row["Price"])
+                stock = int(row["Stock"]) if "Stock" in row and not pd.isna(row["Stock"]) else 0
+                brand = str(row["Brand"]).strip() if "Brand" in row and not pd.isna(row["Brand"]) else ""
+                color = str(row["Color"]).strip() if "Color" in row and not pd.isna(row["Color"]) else ""
+                description = str(row["Description"]).strip() if "Description" in row and not pd.isna(row["Description"]) else ""
+                dimensions = str(row["Dimensions"]).strip() if "Dimensions" in row and not pd.isna(row["Dimensions"]) else ""
                 
                 # Generate product ID now, used for folder
                 product_id = str(uuid.uuid4())
 
                 image_urls = []
-                if "image_urls" in row and not pd.isna(row["image_urls"]):
-                    raw_urls = [url.strip() for url in str(row["image_urls"]).split(",")]
+                if "Image URLs" in row and not pd.isna(row["Image URLs"]):
+                    raw_urls = [url.strip() for url in str(row["Image URLs"]).split(",")]
                     safe_name = name.replace(" ", "_")
                     seq = 1
 
