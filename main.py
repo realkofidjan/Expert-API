@@ -60,6 +60,70 @@ def log_action(user_id, email, role, action, details=None):
 
 
 # -----------------------------------------
+# Helper: detect URL type and download image
+# -----------------------------------------
+def is_google_photos_url(url):
+    """Check if a URL is a Google Photos shared link."""
+    return "photos.app.goo.gl" in url or "photos.google.com/share" in url
+
+
+def is_google_drive_url(url):
+    """Check if a URL is a Google Drive shared link."""
+    return "drive.google.com" in url or "docs.google.com" in url
+
+
+def extract_google_photos_images(url):
+    """
+    Extract image download URLs from a Google Photos shared link.
+    Returns a list of (download_url, content_type) tuples.
+    """
+    try:
+        # Follow redirects for short links (photos.app.goo.gl)
+        session = requests.Session()
+        resp = session.get(url, timeout=15)
+        resp.raise_for_status()
+
+        html = resp.text
+
+        # Extract lh3.googleusercontent.com URLs from the page HTML
+        # These appear in embedded script/data with various size suffixes
+        raw_urls = re.findall(
+            r'(https://lh3\.googleusercontent\.com/pw/[A-Za-z0-9_\-/]+)',
+            html
+        )
+
+        if not raw_urls:
+            # Fallback: broader pattern for any lh3 image URL
+            raw_urls = re.findall(
+                r'(https://lh3\.googleusercontent\.com/[A-Za-z0-9_\-/]+)',
+                html
+            )
+
+        # Deduplicate while preserving order
+        seen = set()
+        unique_urls = []
+        for u in raw_urls:
+            # Strip any existing size params (=w123, =s123, etc.)
+            base = re.split(r'=(?:w|h|s|d)\d*', u)[0]
+            if base not in seen:
+                seen.add(base)
+                unique_urls.append(base)
+
+        # Filter out profile/icon URLs (they tend to be short paths)
+        image_urls = [u for u in unique_urls if len(u) > 80]
+
+        # Append =d for full-resolution download
+        download_urls = [f"{u}=d" for u in image_urls]
+        return download_urls
+
+    except Exception as e:
+        print(f"Failed to extract Google Photos images: {e}")
+        return []
+
+
+
+
+# -----------------------------------------
 # Cloud Function main entry
 # -----------------------------------------
 @functions_framework.http
@@ -227,6 +291,7 @@ def signup(data):
     }
 
     db.collection("customers").document(user_id).set(customer_data)
+    log_action(user_id, email, "customer", "signup")
 
     token = create_token(user_id, email, "customer")
 
@@ -264,6 +329,7 @@ def login(data):
     })
 
     token = create_token(user_doc.id, user["email"], user["role"])
+    log_action(user_doc.id, user["email"], user["role"], "login")
 
     return jsonify({
         "message": "Login successful",
@@ -338,6 +404,7 @@ def add_address(data):
 
     # Save new address
     addresses_ref.document(address_id).set(address_data)
+    log_action(user_id, payload.get("email"), payload.get("role", "customer"), "add_address", {"address_id": address_id})
 
     return jsonify({
         "message": "Address added successfully",
@@ -397,6 +464,7 @@ def edit_address(data):
     update_data["updated_at"] = firestore.SERVER_TIMESTAMP
 
     address_ref.update(update_data)
+    log_action(user_id, payload.get("email"), payload.get("role", "customer"), "edit_address", {"address_id": address_id})
 
     return jsonify({
         "message": "Address updated successfully",
@@ -489,6 +557,8 @@ def delete_address(data):
                 "is_default": True,
                 "updated_at": firestore.SERVER_TIMESTAMP
             })
+
+    log_action(user_id, payload.get("email"), payload.get("role", "customer"), "delete_address", {"address_id": address_id})
 
     return jsonify({
         "message": "Address deleted successfully",
@@ -590,6 +660,8 @@ def add_notification(data):
         user_ref.collection("notifications").document(notification_id).set(notification_data)
         added_notifications.append({"user_id": target_user_id, "notification_id": notification_id})
 
+    log_action(payload.get("user_id"), payload.get("email"), role, "send_notification", {"user_ids": user_ids, "title": data["title"]})
+
     return jsonify({
         "message": "Notifications added successfully",
         "notifications": added_notifications
@@ -685,6 +757,8 @@ def add_category(data):
     else:
         # Add as main category
         db.collection("categories").document(category_id).set(category_data)
+
+    log_action(payload.get("user_id"), payload.get("email"), role, "create_category", {"category_id": category_id, "name": name, "parent_id": parent_id})
 
     return jsonify({
         "message": "Category added successfully",
@@ -790,6 +864,7 @@ def edit_category(data):
         return jsonify({"error": "Category not found"}), 404
 
     category_ref.update(update_data)
+    log_action(payload.get("user_id"), payload.get("email"), role, "update_category", {"category_id": category_id, "parent_id": parent_id})
 
     return jsonify({"message": "Category updated successfully"}), 200
 
@@ -833,6 +908,7 @@ def delete_category(data):
 
     # Delete the category/subcategory
     category_ref.delete()
+    log_action(payload.get("user_id"), payload.get("email"), role, "delete_category", {"category_id": category_id, "parent_id": parent_id})
 
     return jsonify({"message": "Category deleted successfully"}), 200
 
@@ -878,6 +954,7 @@ def add_subcategory(data):
     }
 
     parent_ref.collection("subcategories").document(subcategory_id).set(subcategory_data)
+    log_action(payload.get("user_id"), payload.get("email"), role, "create_subcategory", {"subcategory_id": subcategory_id, "category_id": category_id})
 
     return jsonify({
         "message": "Subcategory added successfully",
@@ -937,6 +1014,7 @@ def edit_subcategory(data):
         return jsonify({"error": "Subcategory not found"}), 404
 
     sub_ref.update(update_data)
+    log_action(payload.get("user_id"), payload.get("email"), role, "update_subcategory", {"subcategory_id": subcategory_id, "category_id": category_id})
 
     return jsonify({"message": "Subcategory updated successfully"}), 200
 
@@ -981,6 +1059,7 @@ def delete_subcategory(data):
         return jsonify({"error": "Subcategory not found"}), 404
 
     sub_ref.delete()
+    log_action(payload.get("user_id"), payload.get("email"), role, "delete_subcategory", {"subcategory_id": subcategory_id, "category_id": category_id})
 
     return jsonify({"message": "Subcategory deleted successfully"}), 200
 
@@ -1170,6 +1249,8 @@ def create_product(request):
             print(traceback.format_exc())
             return jsonify({"error": "Failed to save product"}), 500
 
+        log_action(payload.get("user_id"), payload.get("email"), role, "create_product", {"product_id": product_id, "sku": sku})
+
         return jsonify({
             "message": "Product created successfully",
             "product_id": product_id,
@@ -1307,6 +1388,7 @@ def delete_product(request, db, bucket, SECRET_KEY):
         # DELETE PRODUCT DOC
         # -------------------------
         product_ref.delete()
+        log_action(payload.get("user_id"), payload.get("email"), role, "delete_product", {"product_id": product_id})
 
         return jsonify({
             "message": "Product deleted successfully",
@@ -1410,6 +1492,7 @@ def edit_product(request):
         # UPDATE FIRESTORE
         # -------------------------
         product_ref.update(update_data)
+        log_action(payload.get("user_id"), payload.get("email"), role, "update_product", {"product_id": product_id, "updated_fields": list(update_data.keys())})
 
         return jsonify({
             "message": "Product updated successfully",
@@ -1527,6 +1610,7 @@ def delete_product_images(request, db, bucket, SECRET_KEY):
             "images": current_images,
             "updated_at": firestore.SERVER_TIMESTAMP
         })
+        log_action(payload.get("user_id"), payload.get("email"), role, "delete_product_images", {"product_id": product_id, "deleted_count": len(deleted)})
 
         print(f"Images deleted: {len(deleted)}, remaining: {len(current_images)}")
 
@@ -1612,6 +1696,7 @@ def add_product_images(request, db, bucket, SECRET_KEY):
             "images": updated_images,
             "updated_at": firestore.SERVER_TIMESTAMP
         })
+        log_action(payload.get("user_id"), payload.get("email"), role, "add_product_images", {"product_id": product_id, "added_count": len(new_image_urls)})
 
         return jsonify({
             "message": "Images added successfully",
@@ -1704,37 +1789,83 @@ def batch_upload_products(request, db, bucket, SECRET_KEY):
                     safe_name = name.replace(" ", "_")
                     seq = 1
 
-                    for gdrive_url in raw_urls:
+                    for source_url in raw_urls:
                         try:
-                            # Extract file ID from Google Drive URL
-                            file_id_match = re.search(r"/d/([a-zA-Z0-9_-]+)", gdrive_url)
-                            if not file_id_match:
-                                file_id_match = re.search(r"id=([a-zA-Z0-9_-]+)", gdrive_url)
-                            if not file_id_match:
-                                continue
-                            file_id = file_id_match.group(1)
-                            download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+                            if is_google_photos_url(source_url):
+                                # Google Photos: extract all images from the shared link
+                                photo_urls = extract_google_photos_images(source_url)
+                                for photo_url in photo_urls:
+                                    try:
+                                        resp = requests.get(photo_url, stream=True, timeout=30)
+                                        if resp.status_code != 200:
+                                            print(f"Failed to download Google Photos image: HTTP {resp.status_code}")
+                                            continue
 
-                            resp = requests.get(download_url, stream=True)
-                            if resp.status_code != 200:
-                                continue
+                                        content_type = resp.headers.get("Content-Type", "image/jpeg")
+                                        ext = "jpg"
+                                        if "png" in content_type:
+                                            ext = "png"
+                                        elif "jpeg" in content_type or "jpg" in content_type:
+                                            ext = "jpg"
 
-                            # Determine extension
-                            ext = gdrive_url.split(".")[-1].lower()
-                            if ext not in ["jpg", "jpeg", "png"]:
+                                        filename_seq = f"{safe_name}_{str(seq).zfill(3)}.{ext}"
+                                        blob_name = f"products/{product_id}/{filename_seq}"
+                                        blob = bucket.blob(blob_name)
+                                        blob.upload_from_file(resp.raw, content_type=content_type)
+
+                                        image_urls.append(blob.public_url)
+                                        seq += 1
+                                    except Exception as photo_err:
+                                        print(f"Failed to download Google Photos image: {photo_err}")
+                                        continue
+
+                            elif is_google_drive_url(source_url):
+                                # Google Drive: extract file ID and download
+                                file_id_match = re.search(r"/d/([a-zA-Z0-9_-]+)", source_url)
+                                if not file_id_match:
+                                    file_id_match = re.search(r"id=([a-zA-Z0-9_-]+)", source_url)
+                                if not file_id_match:
+                                    continue
+                                file_id = file_id_match.group(1)
+                                download_url = f"https://drive.google.com/uc?export=download&id={file_id}"
+
+                                resp = requests.get(download_url, stream=True, timeout=30)
+                                if resp.status_code != 200:
+                                    continue
+
+                                ext = source_url.split(".")[-1].lower()
+                                if ext not in ["jpg", "jpeg", "png"]:
+                                    ext = "jpg"
+
+                                filename_seq = f"{safe_name}_{str(seq).zfill(3)}.{ext}"
+                                blob_name = f"products/{product_id}/{filename_seq}"
+                                blob = bucket.blob(blob_name)
+                                blob.upload_from_file(resp.raw, content_type=resp.headers.get("Content-Type", "image/jpeg"))
+
+                                image_urls.append(blob.public_url)
+                                seq += 1
+
+                            else:
+                                # Direct image URL fallback
+                                resp = requests.get(source_url, stream=True, timeout=30)
+                                if resp.status_code != 200:
+                                    continue
+
+                                content_type = resp.headers.get("Content-Type", "image/jpeg")
                                 ext = "jpg"
+                                if "png" in content_type:
+                                    ext = "png"
 
-                            # Sequential filename
-                            filename_seq = f"{safe_name}_{str(seq).zfill(3)}.{ext}"
-                            blob_name = f"products/{product_id}/{filename_seq}"
-                            blob = bucket.blob(blob_name)
-                            blob.upload_from_file(resp.raw, content_type=resp.headers.get("Content-Type", "image/jpeg"))
+                                filename_seq = f"{safe_name}_{str(seq).zfill(3)}.{ext}"
+                                blob_name = f"products/{product_id}/{filename_seq}"
+                                blob = bucket.blob(blob_name)
+                                blob.upload_from_file(resp.raw, content_type=content_type)
 
-                            image_urls.append(blob.public_url)
-                            seq += 1
+                                image_urls.append(blob.public_url)
+                                seq += 1
 
                         except Exception as img_err:
-                            print(f"Failed to process image {gdrive_url}: {img_err}")
+                            print(f"Failed to process image {source_url}: {img_err}")
                             continue
 
                 # ---- Check SKU uniqueness ----
@@ -1778,6 +1909,8 @@ def batch_upload_products(request, db, bucket, SECRET_KEY):
 
             except Exception as row_err:
                 errors.append({"row": index + 2, "error": str(row_err)})
+
+        log_action(payload.get("user_id"), payload.get("email"), role, "batch_upload_products", {"added_count": len(added_products), "error_count": len(errors)})
 
         return jsonify({
             "message": "Batch upload completed",
@@ -1909,6 +2042,8 @@ def add_to_cart(request, db, SECRET_KEY):
                 "added_at": firestore.SERVER_TIMESTAMP,
                 "updated_at": firestore.SERVER_TIMESTAMP
             })
+
+        log_action(customer_id, payload.get("email"), payload.get("role", "customer"), "add_to_cart", {"product_id": product_id, "quantity": quantity})
 
         return jsonify({
             "message": "Product added to cart",
@@ -2056,6 +2191,7 @@ def delete_from_cart(request, db, SECRET_KEY):
         # DELETE CART ITEM
         # -------------------------
         cart_item_ref.delete()
+        log_action(customer_id, payload.get("email"), payload.get("role", "customer"), "delete_from_cart", {"product_id": product_id})
 
         return jsonify({
             "message": "Item removed from cart",
@@ -2114,6 +2250,8 @@ def clear_cart(request, db, SECRET_KEY):
             doc.reference.delete()
             deleted_count += 1
 
+        log_action(customer_id, payload.get("email"), payload.get("role", "customer"), "clear_cart", {"items_removed": deleted_count})
+
         return jsonify({
             "message": "Cart cleared successfully",
             "items_removed": deleted_count
@@ -2163,6 +2301,8 @@ def add_to_wishlist(request, db, SECRET_KEY):
             "added_at": firestore.SERVER_TIMESTAMP
         })
 
+        log_action(customer_id, payload.get("email"), payload.get("role", "customer"), "add_to_wishlist", {"product_id": product_id})
+
         return jsonify({"message": "Added to wishlist", "product_id": product_id}), 200
 
     except Exception as e:
@@ -2201,6 +2341,8 @@ def clear_wishlist(request, db, SECRET_KEY):
         for doc in wishlist_ref.stream():
             doc.reference.delete()
             deleted += 1
+
+        log_action(customer_id, payload.get("email"), payload.get("role", "customer"), "clear_wishlist", {"items_removed": deleted})
 
         return jsonify({
             "message": "Wishlist cleared",
@@ -2248,6 +2390,7 @@ def delete_from_wishlist(request, db, SECRET_KEY):
             return jsonify({"error": "Item not found"}), 404
 
         wishlist_item.delete()
+        log_action(customer_id, payload.get("email"), payload.get("role", "customer"), "delete_from_wishlist", {"product_id": product_id})
 
         return jsonify({"message": "Removed from wishlist", "product_id": product_id}), 200
 
@@ -2303,6 +2446,7 @@ def move_wishlist_to_cart(request, db, SECRET_KEY):
             })
 
         wishlist_item.delete()
+        log_action(customer_id, payload.get("email"), payload.get("role", "customer"), "move_to_cart", {"product_id": product_id})
 
         return jsonify({
             "message": "Moved from wishlist to cart",
@@ -2357,6 +2501,8 @@ def checkout_items(request, db, SECRET_KEY):
             cart_item_ref.delete()
 
             checkout_items_list.append({"product_id": product_id, **cart_data})
+
+        log_action(customer_id, payload.get("email"), payload.get("role", "customer"), "checkout", {"item_count": len(checkout_items_list)})
 
         return jsonify({
             "message": "Items moved to checkout",
@@ -2425,6 +2571,8 @@ def move_checkout_to_cart(request, db, SECRET_KEY):
 
             doc.reference.delete()
             moved_items.append(product_id)
+
+        log_action(customer_id, payload.get("email"), payload.get("role", "customer"), "move_checkout_to_cart", {"moved_count": len(moved_items)})
 
         return jsonify({
             "message": "Items moved back to cart",
@@ -2513,6 +2661,8 @@ def process_checkout(request, db, SECRET_KEY):
         for doc in checkout_docs:
             doc.reference.delete()
 
+        log_action(customer_id, payload.get("email"), payload.get("role", "customer"), "process_checkout", {"order_id": order_id, "subtotal": subtotal})
+
         return jsonify({
             "message": "Order created",
             "order_id": order_id,
@@ -2573,6 +2723,7 @@ def confirm_order(request, db, SECRET_KEY):
             "status": "confirmed",
             "updated_at": firestore.SERVER_TIMESTAMP
         })
+        log_action(user_id, payload.get("email"), role, "confirm_order", {"order_id": order_id})
 
         return jsonify({
             "message": "Order confirmed",
@@ -2633,6 +2784,7 @@ def cancel_order(request, db, SECRET_KEY):
             "status": "cancelled",
             "updated_at": firestore.SERVER_TIMESTAMP
         })
+        log_action(user_id, payload.get("email"), role, "cancel_order", {"order_id": order_id})
 
         return jsonify({
             "message": "Order cancelled",
@@ -2722,6 +2874,7 @@ def set_order_address(request, db, SECRET_KEY):
             "delivery_address": delivery_address,
             "updated_at": firestore.SERVER_TIMESTAMP
         })
+        log_action(customer_id, payload.get("email"), payload.get("role", "customer"), "set_order_address", {"order_id": order_id})
 
         return jsonify({
             "message": "Delivery address set",
@@ -2777,6 +2930,7 @@ def confirm_delivery(request, db, SECRET_KEY):
             "status": "delivered",
             "updated_at": firestore.SERVER_TIMESTAMP
         })
+        log_action(payload.get("user_id"), payload.get("email"), role, "confirm_delivery", {"order_id": order_id})
 
         return jsonify({
             "message": "Delivery confirmed",
@@ -2832,6 +2986,7 @@ def confirm_payment(request, db, SECRET_KEY):
             "status": "paid",
             "updated_at": firestore.SERVER_TIMESTAMP
         })
+        log_action(payload.get("user_id"), payload.get("email"), role, "confirm_payment", {"order_id": order_id})
 
         return jsonify({
             "message": "Payment confirmed",
@@ -2890,6 +3045,7 @@ def request_quote(request, db, SECRET_KEY):
         }
 
         db.collection("quotes").document(quote_id).set(quote_data)
+        log_action(customer_id, payload.get("email"), payload.get("role", "customer"), "request_quote", {"quote_id": quote_id, "item_description": item_description})
 
         return jsonify({
             "message": "Quote request submitted",
@@ -3025,6 +3181,62 @@ def get_quote_detail(request, db, SECRET_KEY):
 
     except Exception as e:
         print("GET QUOTE DETAIL ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
+# GET AUDIT LOGS (Admin Only)
+# -----------------------------------------
+def get_logs(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
+
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        role = payload.get("role")
+        if role not in ["admin", "sub-admin", "super-admin"]:
+            return jsonify({"error": "Unauthorized"}), 403
+
+        query = db.collection("audit_logs").order_by("timestamp", direction=firestore.Query.DESCENDING)
+
+        action_filter = request.args.get("action")
+        if action_filter:
+            query = query.where("action", "==", action_filter)
+
+        role_filter = request.args.get("role")
+        if role_filter:
+            query = query.where("role", "==", role_filter)
+
+        user_id_filter = request.args.get("user_id")
+        if user_id_filter:
+            query = query.where("user_id", "==", user_id_filter)
+
+        limit = min(int(request.args.get("limit", 100)), 500)
+        query = query.limit(limit)
+
+        logs = []
+        for doc in query.stream():
+            log_entry = doc.to_dict()
+            log_entry["id"] = doc.id
+            logs.append(log_entry)
+
+        return jsonify({
+            "count": len(logs),
+            "logs": logs
+        }), 200
+
+    except Exception as e:
+        print("GET LOGS ERROR:", str(e))
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
