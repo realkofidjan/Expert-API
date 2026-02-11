@@ -205,6 +205,8 @@ def app(request):
         result = add_product_images(request, db, bucket, SECRET_KEY)
     elif path == "/delete-product-image":
         result = delete_product_images(request, db, bucket, SECRET_KEY)
+    elif path == "/validate-batch-upload":
+        result = validate_batch_upload(request, db, SECRET_KEY)
     elif path == "/batch-product-upload":
         result = batch_upload_products(request, db, bucket, SECRET_KEY)
     elif path == "/get-cart-items":
@@ -251,6 +253,8 @@ def app(request):
         result = get_quote_detail(request, db, SECRET_KEY)
     elif path == "/get-logs":
         result = get_logs(request, db, SECRET_KEY)
+    elif path == "/dashboard-stats":
+        result = dashboard_stats(request, db, SECRET_KEY)
     else:
         result = (jsonify({"error": "Endpoint not found"}), 404)
 
@@ -1712,6 +1716,172 @@ def add_product_images(request, db, bucket, SECRET_KEY):
 
 
 # -----------------------------------------
+# VALIDATE BATCH UPLOAD
+# -----------------------------------------
+def validate_batch_upload(request, db, SECRET_KEY):
+    try:
+        import pandas as pd
+        from flask import jsonify
+
+        # ---- AUTH ----
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
+
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        role = payload.get("role")
+        if role not in ["admin", "sub-admin", "super-admin"]:
+            return jsonify({"error": "Unauthorized"}), 403
+
+        # ---- FILE UPLOAD ----
+        if not request.content_type.startswith("multipart/form-data"):
+            return jsonify({"error": "Content-Type must be multipart/form-data"}), 415
+
+        uploaded_file = request.files.get("file")
+        if not uploaded_file:
+            return jsonify({"error": "No file uploaded"}), 400
+
+        filename = uploaded_file.filename
+        if filename.endswith(".csv"):
+            df = pd.read_csv(uploaded_file)
+        elif filename.endswith((".xlsx", ".xls")):
+            df = pd.read_excel(uploaded_file)
+        else:
+            return jsonify({"error": "File must be CSV or Excel"}), 400
+
+        required_columns = ["Name", "SKU", "Category", "Subcategory", "Price"]
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            return jsonify({"error": f"Missing required columns: {', '.join(missing_columns)}"}), 400
+
+        # ---- PRE-FETCH categories & subcategories ----
+        all_categories = {}
+        for cat_doc in db.collection("categories").get():
+            cat_data = cat_doc.to_dict()
+            cat_name = cat_data.get("name", "")
+            subcats = {}
+            for sub_doc in cat_doc.reference.collection("subcategories").get():
+                sub_data = sub_doc.to_dict()
+                subcats[sub_data.get("name", "")] = sub_doc.id
+            all_categories[cat_name] = {"id": cat_doc.id, "subcategories": subcats}
+
+        # ---- Check for duplicate SKUs in file ----
+        file_skus = df["SKU"].astype(str).str.strip().tolist()
+        sku_seen = {}
+        file_sku_duplicates = {}
+        for i, s in enumerate(file_skus):
+            if s in sku_seen:
+                if s not in file_sku_duplicates:
+                    file_sku_duplicates[s] = [sku_seen[s]]
+                file_sku_duplicates[s].append(i + 2)
+            else:
+                sku_seen[s] = i + 2
+
+        # ---- Check existing SKUs in DB ----
+        existing_skus = set()
+        for s in set(file_skus):
+            if db.collection("products").where("sku", "==", s).limit(1).get():
+                existing_skus.add(s)
+
+        # ---- Validate each row ----
+        validation_rows = []
+
+        for index, row in df.iterrows():
+            row_num = index + 2
+            row_errors = []
+            row_warnings = []
+
+            name = str(row["Name"]).strip() if not pd.isna(row["Name"]) else ""
+            sku = str(row["SKU"]).strip() if not pd.isna(row["SKU"]) else ""
+            category_name = str(row["Category"]).strip() if not pd.isna(row["Category"]) else ""
+            subcategory_name = str(row["Subcategory"]).strip() if not pd.isna(row["Subcategory"]) else ""
+            price_raw = row["Price"]
+
+            if not name:
+                row_errors.append("Missing required field: Name")
+            if not sku:
+                row_errors.append("Missing required field: SKU")
+            if not category_name:
+                row_errors.append("Missing required field: Category")
+            if not subcategory_name:
+                row_errors.append("Missing required field: Subcategory")
+
+            if pd.isna(price_raw):
+                row_errors.append("Missing required field: Price")
+            else:
+                try:
+                    float(price_raw)
+                except (ValueError, TypeError):
+                    row_errors.append(f"Price must be a number, got: '{price_raw}'")
+
+            if "Stock" in row and not pd.isna(row["Stock"]):
+                try:
+                    int(row["Stock"])
+                except (ValueError, TypeError):
+                    row_errors.append(f"Stock must be an integer, got: '{row['Stock']}'")
+
+            if sku and sku in existing_skus:
+                row_errors.append("SKU already exists in database")
+
+            if sku and sku in file_sku_duplicates:
+                other_rows = [r for r in file_sku_duplicates[sku] if r != row_num]
+                if other_rows:
+                    row_errors.append(f"Duplicate SKU in file (also in row {', '.join(map(str, other_rows))})")
+
+            if category_name and category_name not in all_categories:
+                row_errors.append(f"Category '{category_name}' not found")
+            elif category_name and subcategory_name:
+                cat_info = all_categories[category_name]
+                if subcategory_name not in cat_info["subcategories"]:
+                    row_errors.append(f"Subcategory '{subcategory_name}' not found under '{category_name}'")
+
+            if "Image URLs" in row and not pd.isna(row["Image URLs"]):
+                urls = [u.strip() for u in str(row["Image URLs"]).split(",")]
+                for u in urls:
+                    if not u.startswith("http://") and not u.startswith("https://"):
+                        row_errors.append(f"Invalid image URL: '{u}'")
+            else:
+                row_warnings.append("No image URLs provided")
+
+            status = "valid" if not row_errors else "invalid"
+            validation_rows.append({
+                "row": row_num,
+                "name": name,
+                "sku": sku,
+                "category": category_name,
+                "subcategory": subcategory_name,
+                "status": status,
+                "errors": row_errors,
+                "warnings": row_warnings
+            })
+
+        valid_count = sum(1 for r in validation_rows if r["status"] == "valid")
+        invalid_count = sum(1 for r in validation_rows if r["status"] == "invalid")
+
+        return jsonify({
+            "validation": True,
+            "total_rows": len(validation_rows),
+            "valid_rows": valid_count,
+            "invalid_rows": invalid_count,
+            "rows": validation_rows
+        }), 200
+
+    except Exception as e:
+        import traceback
+        print("VALIDATE BATCH ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
 # BATCH PRODUCT UPLOAD (Excel/CSV + Google Drive Image URLs)
 # -----------------------------------------
 def batch_upload_products(request, db, bucket, SECRET_KEY):
@@ -1764,6 +1934,130 @@ def batch_upload_products(request, db, bucket, SECRET_KEY):
             if col not in df.columns:
                 return jsonify({"error": f"Missing required column: {col}"}), 400
 
+        validate_only = request.args.get("validate", "").lower() == "true"
+
+        # ---- PRE-FETCH categories & subcategories for validation ----
+        all_categories = {}  # { name: { "id": ..., "subcategories": { name: id } } }
+        for cat_doc in db.collection("categories").get():
+            cat_data = cat_doc.to_dict()
+            cat_name = cat_data.get("name", "")
+            subcats = {}
+            for sub_doc in cat_doc.reference.collection("subcategories").get():
+                sub_data = sub_doc.to_dict()
+                subcats[sub_data.get("name", "")] = sub_doc.id
+            all_categories[cat_name] = {"id": cat_doc.id, "subcategories": subcats}
+
+        # ---- PRE-CHECK for duplicate SKUs in file ----
+        file_skus = df["SKU"].astype(str).str.strip().tolist()
+        sku_seen = {}  # { sku: first_row }
+        file_sku_duplicates = {}  # { sku: [row_numbers] }
+        for i, s in enumerate(file_skus):
+            if s in sku_seen:
+                if s not in file_sku_duplicates:
+                    file_sku_duplicates[s] = [sku_seen[s]]
+                file_sku_duplicates[s].append(i + 2)
+            else:
+                sku_seen[s] = i + 2
+
+        # ---- PRE-CHECK existing SKUs in DB ----
+        existing_skus = set()
+        for s in set(file_skus):
+            if db.collection("products").where("sku", "==", s).limit(1).get():
+                existing_skus.add(s)
+
+        # ---- VALIDATION MODE ----
+        if validate_only:
+            validation_rows = []
+
+            for index, row in df.iterrows():
+                row_num = index + 2
+                row_errors = []
+                row_warnings = []
+
+                # Required fields
+                name = str(row["Name"]).strip() if not pd.isna(row["Name"]) else ""
+                sku = str(row["SKU"]).strip() if not pd.isna(row["SKU"]) else ""
+                category_name = str(row["Category"]).strip() if not pd.isna(row["Category"]) else ""
+                subcategory_name = str(row["Subcategory"]).strip() if not pd.isna(row["Subcategory"]) else ""
+                price_raw = row["Price"]
+
+                if not name:
+                    row_errors.append("Missing required field: Name")
+                if not sku:
+                    row_errors.append("Missing required field: SKU")
+                if not category_name:
+                    row_errors.append("Missing required field: Category")
+                if not subcategory_name:
+                    row_errors.append("Missing required field: Subcategory")
+
+                # Price type check
+                if pd.isna(price_raw):
+                    row_errors.append("Missing required field: Price")
+                else:
+                    try:
+                        float(price_raw)
+                    except (ValueError, TypeError):
+                        row_errors.append(f"Price must be a number, got: '{price_raw}'")
+
+                # Stock type check
+                if "Stock" in row and not pd.isna(row["Stock"]):
+                    try:
+                        int(row["Stock"])
+                    except (ValueError, TypeError):
+                        row_errors.append(f"Stock must be an integer, got: '{row['Stock']}'")
+
+                # SKU uniqueness - in DB
+                if sku and sku in existing_skus:
+                    row_errors.append("SKU already exists in database")
+
+                # SKU uniqueness - in file
+                if sku and sku in file_sku_duplicates:
+                    other_rows = [r for r in file_sku_duplicates[sku] if r != row_num]
+                    if other_rows:
+                        row_errors.append(f"Duplicate SKU in file (also in row {', '.join(map(str, other_rows))})")
+
+                # Category exists
+                if category_name and category_name not in all_categories:
+                    row_errors.append(f"Category '{category_name}' not found")
+                elif category_name and subcategory_name:
+                    # Subcategory exists under that category
+                    cat_info = all_categories[category_name]
+                    if subcategory_name not in cat_info["subcategories"]:
+                        row_errors.append(f"Subcategory '{subcategory_name}' not found under '{category_name}'")
+
+                # Image URL validation
+                if "Image URLs" in row and not pd.isna(row["Image URLs"]):
+                    urls = [u.strip() for u in str(row["Image URLs"]).split(",")]
+                    for u in urls:
+                        if not u.startswith("http://") and not u.startswith("https://"):
+                            row_errors.append(f"Invalid image URL: '{u}'")
+                else:
+                    row_warnings.append("No image URLs provided")
+
+                status = "valid" if not row_errors else "invalid"
+                validation_rows.append({
+                    "row": row_num,
+                    "name": name,
+                    "sku": sku,
+                    "category": category_name,
+                    "subcategory": subcategory_name,
+                    "status": status,
+                    "errors": row_errors,
+                    "warnings": row_warnings
+                })
+
+            valid_count = sum(1 for r in validation_rows if r["status"] == "valid")
+            invalid_count = sum(1 for r in validation_rows if r["status"] == "invalid")
+
+            return jsonify({
+                "validation": True,
+                "total_rows": len(validation_rows),
+                "valid_rows": valid_count,
+                "invalid_rows": invalid_count,
+                "rows": validation_rows
+            }), 200
+
+        # ---- NORMAL UPLOAD MODE ----
         added_products = []
         errors = []
 
@@ -1779,7 +2073,7 @@ def batch_upload_products(request, db, bucket, SECRET_KEY):
                 color = str(row["Color"]).strip() if "Color" in row and not pd.isna(row["Color"]) else ""
                 description = str(row["Description"]).strip() if "Description" in row and not pd.isna(row["Description"]) else ""
                 dimensions = str(row["Dimensions"]).strip() if "Dimensions" in row and not pd.isna(row["Dimensions"]) else ""
-                
+
                 # Generate product ID now, used for folder
                 product_id = str(uuid.uuid4())
 
@@ -1868,24 +2162,22 @@ def batch_upload_products(request, db, bucket, SECRET_KEY):
                             print(f"Failed to process image {source_url}: {img_err}")
                             continue
 
-                # ---- Check SKU uniqueness ----
-                if db.collection("products").where("sku", "==", sku).get():
-                    errors.append({"row": index + 2, "sku": sku, "error": "SKU already exists"})
-                    continue
-
-                # ---- Category & Subcategory lookup ----
-                cat_query = db.collection("categories").where("name", "==", category_name).get()
-                if not cat_query:
+                # ---- Use pre-fetched category data for lookup ----
+                if category_name not in all_categories:
                     errors.append({"row": index + 2, "sku": sku, "error": f"Category '{category_name}' not found"})
                     continue
-                category_id = cat_query[0].id
+                cat_info = all_categories[category_name]
+                category_id = cat_info["id"]
 
-                sub_query = db.collection("categories").document(category_id)\
-                    .collection("subcategories").where("name", "==", subcategory_name).get()
-                if not sub_query:
+                if subcategory_name not in cat_info["subcategories"]:
                     errors.append({"row": index + 2, "sku": sku, "error": f"Subcategory '{subcategory_name}' not found"})
                     continue
-                subcategory_id = sub_query[0].id
+                subcategory_id = cat_info["subcategories"][subcategory_name]
+
+                # ---- Check SKU uniqueness ----
+                if sku in existing_skus:
+                    errors.append({"row": index + 2, "sku": sku, "error": "SKU already exists"})
+                    continue
 
                 # ---- Save Product ----
                 product_data = {
@@ -3237,6 +3529,141 @@ def get_logs(request, db, SECRET_KEY):
 
     except Exception as e:
         print("GET LOGS ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
+# DASHBOARD STATS
+# -----------------------------------------
+def dashboard_stats(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
+
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        role = payload.get("role")
+        if role not in ["admin", "sub-admin", "super-admin"]:
+            return jsonify({"error": "Unauthorized"}), 403
+
+        # ---- Fetch all collections ----
+        products_docs = db.collection("products").get()
+        categories_docs = db.collection("categories").get()
+        orders_docs = db.collection("orders").get()
+        customers_docs = db.collection("customers").get()
+
+        # ---- Products stats ----
+        products = [doc.to_dict() for doc in products_docs]
+        total_products = len(products)
+        low_stock = sum(1 for p in products if 0 < (p.get("stock") or 0) <= 10)
+        out_of_stock = sum(1 for p in products if (p.get("stock") or 0) == 0)
+        total_stock = sum(p.get("stock") or 0 for p in products)
+        total_value = sum((p.get("price") or 0) * (p.get("stock") or 0) for p in products)
+
+        # ---- Products by category ----
+        category_id_to_name = {}
+        categories_list = []
+        for doc in categories_docs:
+            cat = doc.to_dict()
+            cat_name = cat.get("name", "Unknown")
+            category_id_to_name[doc.id] = cat_name
+            sub_docs = doc.reference.collection("subcategories").get()
+            categories_list.append({
+                "category_id": doc.id,
+                "name": cat_name,
+                "subcategory_count": len(sub_docs)
+            })
+
+        product_count_by_cat = {}
+        for p in products:
+            cat_id = p.get("category_id", "")
+            cat_name = category_id_to_name.get(cat_id, "Uncategorized")
+            product_count_by_cat[cat_name] = product_count_by_cat.get(cat_name, 0) + 1
+
+        products_by_category = [
+            {"name": name, "count": count}
+            for name, count in sorted(product_count_by_cat.items(), key=lambda x: x[1], reverse=True)
+        ]
+
+        categories_with_products = sum(1 for c in products_by_category if c["count"] > 0)
+
+        # ---- Orders stats ----
+        orders = []
+        for doc in orders_docs:
+            o = doc.to_dict()
+            o["order_id"] = doc.id
+            created = o.get("created_at")
+            if created:
+                o["created_at"] = created.isoformat() if hasattr(created, "isoformat") else str(created)
+            orders.append(o)
+
+        total_orders = len(orders)
+        orders_by_status = {}
+        for o in orders:
+            status = o.get("status", "unknown")
+            orders_by_status[status] = orders_by_status.get(status, 0) + 1
+
+        total_revenue = sum(o.get("subtotal") or 0 for o in orders)
+
+        recent_orders = sorted(orders, key=lambda x: x.get("created_at", ""), reverse=True)[:5]
+        recent_orders_clean = []
+        for o in recent_orders:
+            recent_orders_clean.append({
+                "order_id": o.get("order_id"),
+                "customer_id": o.get("customer_id"),
+                "subtotal": o.get("subtotal", 0),
+                "status": o.get("status", "unknown"),
+                "created_at": o.get("created_at", "")
+            })
+
+        # ---- Customers stats ----
+        total_customers = len(customers_docs)
+
+        # ---- Low stock products ----
+        low_stock_products = sorted(
+            [{"name": p.get("name", ""), "sku": p.get("sku", ""), "stock": p.get("stock", 0)}
+             for p in products if 0 < (p.get("stock") or 0) <= 10],
+            key=lambda x: x["stock"]
+        )[:10]
+
+        return jsonify({
+            "products": {
+                "total": total_products,
+                "low_stock": low_stock,
+                "out_of_stock": out_of_stock
+            },
+            "categories": {
+                "total": len(categories_list),
+                "with_products": categories_with_products
+            },
+            "orders": {
+                "total": total_orders,
+                "revenue": total_revenue,
+                "by_status": orders_by_status
+            },
+            "customers": {
+                "total": total_customers
+            },
+            "inventory": {
+                "total_stock": total_stock,
+                "total_value": total_value
+            },
+            "products_by_category": products_by_category,
+            "recent_orders": recent_orders_clean,
+            "low_stock_products": low_stock_products
+        }), 200
+
+    except Exception as e:
+        print("DASHBOARD STATS ERROR:", str(e))
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
