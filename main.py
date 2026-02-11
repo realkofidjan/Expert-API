@@ -43,6 +43,23 @@ def create_token(user_id, email, role):
 
 
 # -----------------------------------------
+# Helper: audit log
+# -----------------------------------------
+def log_action(user_id, email, role, action, details=None):
+    try:
+        db.collection("audit_logs").add({
+            "user_id": user_id,
+            "email": email,
+            "role": role,
+            "action": action,
+            "details": details or {},
+            "timestamp": firestore.SERVER_TIMESTAMP
+        })
+    except Exception as e:
+        print(f"AUDIT LOG ERROR: {e}")
+
+
+# -----------------------------------------
 # Cloud Function main entry
 # -----------------------------------------
 @functions_framework.http
@@ -168,6 +185,8 @@ def app(request):
         result = list_quotes(request, db, SECRET_KEY)
     elif path == "/get-quote-detail":
         result = get_quote_detail(request, db, SECRET_KEY)
+    elif path == "/get-logs":
+        result = get_logs(request, db, SECRET_KEY)
     else:
         result = (jsonify({"error": "Endpoint not found"}), 404)
 
