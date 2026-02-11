@@ -1,0 +1,1497 @@
+{
+  "info": {
+    "name": "Expert API — Test Runner",
+    "description": "Sequential test runner for the full Expert API lifecycle.\n\nHow to run:\n1. Import this collection into Postman\n2. Set the base_url variable (default: http://localhost:8080)\n3. Click \"Run collection\" (Collection Runner)\n4. All 42 requests run in order, passing IDs forward via variables\n5. Check the Test Results tab for pass/fail on every request\n\nPrereqs: An admin account and at least one product must already exist in Firestore.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 — Login (Customer)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Customer login returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains token', function () {",
+              "    pm.expect(json).to.have.property('token');",
+              "});",
+              "",
+              "pm.test('Response contains user_id', function () {",
+              "    pm.expect(json).to.have.property('user_id');",
+              "});",
+              "",
+              "if (json.token) {",
+              "    pm.collectionVariables.set('customer_token', json.token);",
+              "}",
+              "if (json.user_id) {",
+              "    pm.collectionVariables.set('customer_id', json.user_id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"email\": \"{{customer_email}}\",\n    \"password\": \"{{customer_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/login",
+          "host": ["{{base_url}}"],
+          "path": ["login"]
+        }
+      }
+    },
+    {
+      "name": "02 — Login (Admin)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Admin login returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains token', function () {",
+              "    pm.expect(json).to.have.property('token');",
+              "});",
+              "",
+              "if (json.token) {",
+              "    pm.collectionVariables.set('admin_token', json.token);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"email\": \"{{admin_email}}\",\n    \"password\": \"{{admin_password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/login",
+          "host": ["{{base_url}}"],
+          "path": ["login"]
+        }
+      }
+    },
+    {
+      "name": "03 — Add Category",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Add category returns 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains category_id', function () {",
+              "    pm.expect(json).to.have.property('category_id');",
+              "});",
+              "",
+              "if (json.category_id) {",
+              "    pm.collectionVariables.set('category_id', json.category_id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"name\": \"Test Category\",\n    \"description\": \"Auto-created by test runner\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/add-category",
+          "host": ["{{base_url}}"],
+          "path": ["add-category"]
+        }
+      }
+    },
+    {
+      "name": "04 — Add Subcategory",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Add subcategory returns 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains subcategory_id', function () {",
+              "    pm.expect(json).to.have.property('subcategory_id');",
+              "});",
+              "",
+              "if (json.subcategory_id) {",
+              "    pm.collectionVariables.set('subcategory_id', json.subcategory_id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"category_id\": \"{{category_id}}\",\n    \"name\": \"Test Subcategory\",\n    \"description\": \"Auto-created by test runner\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/add-subcategory",
+          "host": ["{{base_url}}"],
+          "path": ["add-subcategory"]
+        }
+      }
+    },
+    {
+      "name": "05 — List Categories",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('List categories returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains categories array', function () {",
+              "    pm.expect(json).to.have.property('categories');",
+              "    pm.expect(json.categories).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/list-categories",
+          "host": ["{{base_url}}"],
+          "path": ["list-categories"]
+        }
+      }
+    },
+    {
+      "name": "06 — List Subcategories",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('List subcategories returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains subcategories array', function () {",
+              "    pm.expect(json).to.have.property('subcategories');",
+              "    pm.expect(json.subcategories).to.be.an('array');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"category_id\": \"{{category_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/list-subcategories?category_id={{category_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["list-subcategories"],
+          "query": [{ "key": "category_id", "value": "{{category_id}}" }]
+        }
+      }
+    },
+    {
+      "name": "07 — Edit Subcategory",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Edit subcategory returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"category_id\": \"{{category_id}}\",\n    \"subcategory_id\": \"{{subcategory_id}}\",\n    \"name\": \"Edited Subcategory\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/edit-subcategory",
+          "host": ["{{base_url}}"],
+          "path": ["edit-subcategory"]
+        }
+      }
+    },
+    {
+      "name": "08 — Edit Category",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Edit category returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"category_id\": \"{{category_id}}\",\n    \"name\": \"Edited Category\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/edit-category",
+          "host": ["{{base_url}}"],
+          "path": ["edit-category"]
+        }
+      }
+    },
+    {
+      "name": "09 — Get All Products (extract product_id)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Get all products returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains products array', function () {",
+              "    pm.expect(json).to.have.property('products');",
+              "    pm.expect(json.products).to.be.an('array');",
+              "});",
+              "",
+              "if (json.products && json.products.length > 0) {",
+              "    var pid = json.products[0].product_id || json.products[0].id;",
+              "    if (pid) {",
+              "        pm.collectionVariables.set('product_id', pid);",
+              "        console.log('Extracted product_id: ' + pid);",
+              "    }",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/get-all-products",
+          "host": ["{{base_url}}"],
+          "path": ["get-all-products"]
+        }
+      }
+    },
+    {
+      "name": "10 — Get Product",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Get product returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/get-product?product_id={{product_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["get-product"],
+          "query": [{ "key": "product_id", "value": "{{product_id}}" }]
+        }
+      }
+    },
+    {
+      "name": "11 — Add Address",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Add address returns 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains address_id', function () {",
+              "    pm.expect(json).to.have.property('address_id');",
+              "});",
+              "",
+              "if (json.address_id) {",
+              "    pm.collectionVariables.set('address_id', json.address_id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"address_line1\": \"123 Test Runner Street\",\n    \"address_line2\": \"Apt 1\",\n    \"city\": \"Accra\",\n    \"region\": \"Greater Accra\",\n    \"country\": \"Ghana\",\n    \"delivery_instructions\": \"Created by test runner\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/add-address",
+          "host": ["{{base_url}}"],
+          "path": ["add-address"]
+        }
+      }
+    },
+    {
+      "name": "12 — List Addresses",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('List addresses returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/list-addresses",
+          "host": ["{{base_url}}"],
+          "path": ["list-addresses"]
+        }
+      }
+    },
+    {
+      "name": "13 — Edit Address",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Edit address returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"address_id\": \"{{address_id}}\",\n    \"address_line1\": \"456 Edited Street\",\n    \"city\": \"Kumasi\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/edit-address",
+          "host": ["{{base_url}}"],
+          "path": ["edit-address"]
+        }
+      }
+    },
+    {
+      "name": "14 — Add Notification (Admin → Customer)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Add notification returns 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains notifications array', function () {",
+              "    pm.expect(json).to.have.property('notifications');",
+              "    pm.expect(json.notifications).to.be.an('array');",
+              "});",
+              "",
+              "if (json.notifications && json.notifications.length > 0) {",
+              "    var nid = json.notifications[0].notification_id;",
+              "    if (nid) {",
+              "        pm.collectionVariables.set('notification_id', nid);",
+              "    }",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"title\": \"Test Runner Notification\",\n    \"message\": \"This was sent by the test runner\",\n    \"type\": \"info\",\n    \"reference_type\": \"test\",\n    \"reference_id\": \"runner-001\",\n    \"user_ids\": [\"{{customer_id}}\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/add-notification",
+          "host": ["{{base_url}}"],
+          "path": ["add-notification"]
+        }
+      }
+    },
+    {
+      "name": "15 — List Notifications",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('List notifications returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/list-notifications",
+          "host": ["{{base_url}}"],
+          "path": ["list-notifications"]
+        }
+      }
+    },
+    {
+      "name": "16 — Mark Notification Read",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Mark notification read returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"notification_id\": \"{{notification_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/mark-notification-read",
+          "host": ["{{base_url}}"],
+          "path": ["mark-notification-read"]
+        }
+      }
+    },
+    {
+      "name": "17 — Add to Cart",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Add to cart returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"product_id\": \"{{product_id}}\",\n    \"quantity\": 2\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/add-to-cart",
+          "host": ["{{base_url}}"],
+          "path": ["add-to-cart"]
+        }
+      }
+    },
+    {
+      "name": "18 — Get Cart Items",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Get cart items returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains cart_items array', function () {",
+              "    pm.expect(json).to.have.property('cart_items');",
+              "    pm.expect(json.cart_items).to.be.an('array');",
+              "});",
+              "",
+              "pm.test('Cart is not empty', function () {",
+              "    pm.expect(json.total_items).to.be.above(0);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/get-cart-items",
+          "host": ["{{base_url}}"],
+          "path": ["get-cart-items"]
+        }
+      }
+    },
+    {
+      "name": "19 — Update Cart Quantity",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Update cart quantity returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"product_id\": \"{{product_id}}\",\n    \"quantity\": 3\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/update-cart-quantity",
+          "host": ["{{base_url}}"],
+          "path": ["update-cart-quantity"]
+        }
+      }
+    },
+    {
+      "name": "20 — Add to Wishlist",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Add to wishlist returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/add-to-wishlist?product_id={{product_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["add-to-wishlist"],
+          "query": [{ "key": "product_id", "value": "{{product_id}}" }]
+        }
+      }
+    },
+    {
+      "name": "21 — Delete from Wishlist",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Delete from wishlist returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/delete-from-wishlist?product_id={{product_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["delete-from-wishlist"],
+          "query": [{ "key": "product_id", "value": "{{product_id}}" }]
+        }
+      }
+    },
+    {
+      "name": "22 — Add to Wishlist (for move test)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Add to wishlist returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/add-to-wishlist?product_id={{product_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["add-to-wishlist"],
+          "query": [{ "key": "product_id", "value": "{{product_id}}" }]
+        }
+      }
+    },
+    {
+      "name": "23 — Move Wishlist to Cart",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Move wishlist to cart returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/move-from-wishlist-to-cart?product_id={{product_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["move-from-wishlist-to-cart"],
+          "query": [{ "key": "product_id", "value": "{{product_id}}" }]
+        }
+      }
+    },
+    {
+      "name": "24 — Clear Wishlist",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Clear wishlist returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/clear-wishlist",
+          "host": ["{{base_url}}"],
+          "path": ["clear-wishlist"]
+        }
+      }
+    },
+    {
+      "name": "25 — Checkout Items",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Checkout items returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains checkout_items', function () {",
+              "    pm.expect(json).to.have.property('checkout_items');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"product_ids\": [\"{{product_id}}\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/checkout-items",
+          "host": ["{{base_url}}"],
+          "path": ["checkout-items"]
+        }
+      }
+    },
+    {
+      "name": "26 — Move Checkout to Cart",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Move checkout to cart returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains moved_product_ids', function () {",
+              "    pm.expect(json).to.have.property('moved_product_ids');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"product_ids\": [\"{{product_id}}\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/move-checkout-to-cart",
+          "host": ["{{base_url}}"],
+          "path": ["move-checkout-to-cart"]
+        }
+      }
+    },
+    {
+      "name": "27 — Checkout Items (re-checkout for order)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Checkout items returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"product_ids\": [\"{{product_id}}\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/checkout-items",
+          "host": ["{{base_url}}"],
+          "path": ["checkout-items"]
+        }
+      }
+    },
+    {
+      "name": "28 — Process Checkout → Create Order",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Process checkout returns 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains order_id', function () {",
+              "    pm.expect(json).to.have.property('order_id');",
+              "});",
+              "",
+              "pm.test('Response contains items array', function () {",
+              "    pm.expect(json).to.have.property('items');",
+              "    pm.expect(json.items).to.be.an('array');",
+              "});",
+              "",
+              "pm.test('Response contains subtotal', function () {",
+              "    pm.expect(json).to.have.property('subtotal');",
+              "    pm.expect(json.subtotal).to.be.a('number');",
+              "});",
+              "",
+              "if (json.order_id) {",
+              "    pm.collectionVariables.set('order_id', json.order_id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/process-checkout",
+          "host": ["{{base_url}}"],
+          "path": ["process-checkout"]
+        }
+      }
+    },
+    {
+      "name": "29 — Set Order Address (from address book)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Set order address (address book) returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains delivery_address', function () {",
+              "    pm.expect(json).to.have.property('delivery_address');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"order_id\": \"{{order_id}}\",\n    \"address_id\": \"{{address_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/set-order-address",
+          "host": ["{{base_url}}"],
+          "path": ["set-order-address"]
+        }
+      }
+    },
+    {
+      "name": "30 — Set Order Address (manual)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Set order address (manual) returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('delivery_address has correct city', function () {",
+              "    pm.expect(json.delivery_address.city).to.eql('Accra');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"order_id\": \"{{order_id}}\",\n    \"address_line1\": \"789 Delivery Lane\",\n    \"address_line2\": \"Suite 10\",\n    \"city\": \"Accra\",\n    \"region\": \"Greater Accra\",\n    \"country\": \"Ghana\",\n    \"delivery_instructions\": \"Leave at the gate\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/set-order-address",
+          "host": ["{{base_url}}"],
+          "path": ["set-order-address"]
+        }
+      }
+    },
+    {
+      "name": "31 — Confirm Order (Customer)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Confirm order returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Order status is confirmed', function () {",
+              "    pm.expect(json.status).to.eql('confirmed');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"order_id\": \"{{order_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/confirm-order",
+          "host": ["{{base_url}}"],
+          "path": ["confirm-order"]
+        }
+      }
+    },
+    {
+      "name": "32 — Confirm Delivery (Admin)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Confirm delivery returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Order status is delivered', function () {",
+              "    pm.expect(json.status).to.eql('delivered');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"order_id\": \"{{order_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/confirm-delivery",
+          "host": ["{{base_url}}"],
+          "path": ["confirm-delivery"]
+        }
+      }
+    },
+    {
+      "name": "33 — Confirm Payment (Admin)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Confirm payment returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Order status is paid', function () {",
+              "    pm.expect(json.status).to.eql('paid');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"order_id\": \"{{order_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/confirm-payment",
+          "host": ["{{base_url}}"],
+          "path": ["confirm-payment"]
+        }
+      }
+    },
+    {
+      "name": "34 — Add to Cart (for cancel test)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Add to cart returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"product_id\": \"{{product_id}}\",\n    \"quantity\": 1\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/add-to-cart",
+          "host": ["{{base_url}}"],
+          "path": ["add-to-cart"]
+        }
+      }
+    },
+    {
+      "name": "35 — Checkout Items (for cancel test)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Checkout items returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"product_ids\": [\"{{product_id}}\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/checkout-items",
+          "host": ["{{base_url}}"],
+          "path": ["checkout-items"]
+        }
+      }
+    },
+    {
+      "name": "36 — Process Checkout (for cancel test)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Process checkout returns 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "if (json.order_id) {",
+              "    pm.collectionVariables.set('cancel_order_id', json.order_id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/process-checkout",
+          "host": ["{{base_url}}"],
+          "path": ["process-checkout"]
+        }
+      }
+    },
+    {
+      "name": "37 — Cancel Order",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Cancel order returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Order status is cancelled', function () {",
+              "    pm.expect(json.status).to.eql('cancelled');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"order_id\": \"{{cancel_order_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/cancel-order",
+          "host": ["{{base_url}}"],
+          "path": ["cancel-order"]
+        }
+      }
+    },
+    {
+      "name": "38 — Request Quote",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Request quote returns 201', function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "var json = pm.response.json();",
+              "",
+              "pm.test('Response contains quote_id', function () {",
+              "    pm.expect(json).to.have.property('quote_id');",
+              "});",
+              "",
+              "if (json.quote_id) {",
+              "    pm.collectionVariables.set('quote_id', json.quote_id);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"item_description\": \"Custom engraved wooden desk plaque\",\n    \"quantity\": 10,\n    \"notes\": \"Need by end of March, gold lettering preferred\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/get-quote",
+          "host": ["{{base_url}}"],
+          "path": ["get-quote"]
+        }
+      }
+    },
+    {
+      "name": "39 — Delete from Cart (cleanup)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Clear cart returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/clear-cart",
+          "host": ["{{base_url}}"],
+          "path": ["clear-cart"]
+        }
+      }
+    },
+    {
+      "name": "40 — Delete Address (cleanup)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Delete address returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{customer_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"address_id\": \"{{address_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/delete-address",
+          "host": ["{{base_url}}"],
+          "path": ["delete-address"]
+        }
+      }
+    },
+    {
+      "name": "41 — Delete Subcategory (cleanup)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Delete subcategory returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"category_id\": \"{{category_id}}\",\n    \"subcategory_id\": \"{{subcategory_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/delete-subcategory",
+          "host": ["{{base_url}}"],
+          "path": ["delete-subcategory"]
+        }
+      }
+    },
+    {
+      "name": "42 — Delete Category (cleanup)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Delete category returns 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{admin_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"category_id\": \"{{category_id}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/delete-category",
+          "host": ["{{base_url}}"],
+          "path": ["delete-category"]
+        }
+      }
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "https://expert-function-126056378552.europe-west1.run.app" },
+    { "key": "customer_email", "value": "nana@example.com" },
+    { "key": "customer_password", "value": "123456" },
+    { "key": "admin_email", "value": "admin@test.com" },
+    { "key": "admin_password", "value": "00001" },
+    { "key": "customer_token", "value": "" },
+    { "key": "admin_token", "value": "" },
+    { "key": "customer_id", "value": "" },
+    { "key": "product_id", "value": "" },
+    { "key": "category_id", "value": "" },
+    { "key": "subcategory_id", "value": "" },
+    { "key": "address_id", "value": "" },
+    { "key": "notification_id", "value": "" },
+    { "key": "order_id", "value": "" },
+    { "key": "cancel_order_id", "value": "" },
+    { "key": "quote_id", "value": "" }
+  ]
+}
