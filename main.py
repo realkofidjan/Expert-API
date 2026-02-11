@@ -47,137 +47,125 @@ def create_token(user_id, email, role):
 # -----------------------------------------
 @functions_framework.http
 def app(request):
+    # Handle CORS preflight requests
+    if request.method == "OPTIONS":
+        headers = {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization",
+            "Access-Control-Max-Age": "3600",
+        }
+        return ("", 204, headers)
+
+    # Add CORS headers to all responses
+    cors_headers = {"Access-Control-Allow-Origin": "*"}
+
+    def add_cors(response):
+        if isinstance(response, tuple):
+            if len(response) == 2:
+                body, status = response
+                return (body, status, cors_headers)
+            elif len(response) == 3:
+                body, status, headers = response
+                if isinstance(headers, dict):
+                    headers.update(cors_headers)
+                return (body, status, headers)
+        return response
+
     request_json = request.get_json(silent=True) or {}
     path = request.path.lower()
 
     # ---- ROUTES ----
+    result = None
+
     if path == "/signup":
-        return signup(request_json)
+        result = signup(request_json)
+    elif path == "/login":
+        result = login(request_json)
+    elif path == "/add-address":
+        result = add_address(request_json)
+    elif path == "/edit-address":
+        result = edit_address(request_json)
+    elif path == "/list-addresses":
+        result = list_addresses(request_json)
+    elif path == "/delete-address":
+        result = delete_address(request_json)
+    elif path == "/add-notification":
+        result = add_notification(request_json)
+    elif path == "/list-notifications":
+        result = list_notifications(request_json)
+    elif path == "/mark-notification-read":
+        result = mark_notification_read(request_json)
+    elif path == "/add-category":
+        result = add_category(request_json)
+    elif path == "/list-categories":
+        result = list_categories(request_json)
+    elif path == "/edit-category":
+        result = edit_category(request_json)
+    elif path == "/delete-category":
+        result = delete_category(request_json)
+    elif path == "/add-subcategory":
+        result = add_subcategory(request_json)
+    elif path == "/edit-subcategory":
+        result = edit_subcategory(request_json)
+    elif path == "/delete-subcategory":
+        result = delete_subcategory(request_json)
+    elif path == "/list-subcategories":
+        result = list_subcategories(request_json)
+    elif path == "/create-product":
+        result = create_product(request)
+    elif path == "/get-product":
+        result = get_product(request, db)
+    elif path == "/get-all-products":
+        result = get_all_products(request, db)
+    elif path == "/delete-product":
+        result = delete_product(request, db, bucket, SECRET_KEY)
+    elif path == "/add-product-images":
+        result = add_product_images(request, db, bucket, SECRET_KEY)
+    elif path == "/delete-product-image":
+        result = delete_product_images(request, db, bucket, SECRET_KEY)
+    elif path == "/batch-product-upload":
+        result = batch_upload_products(request, db, bucket, SECRET_KEY)
+    elif path == "/get-cart-items":
+        result = get_cart_items(request, db, SECRET_KEY)
+    elif path == "/add-to-cart":
+        result = add_to_cart(request, db, SECRET_KEY)
+    elif path == "/update-cart-quantity":
+        result = update_cart_quantity(request, db, SECRET_KEY)
+    elif path == "/delete-from-cart":
+        result = delete_from_cart(request, db, SECRET_KEY)
+    elif path == "/clear-cart":
+        result = clear_cart(request, db, SECRET_KEY)
+    elif path == "/add-to-wishlist":
+        result = add_to_wishlist(request, db, SECRET_KEY)
+    elif path == "/delete-from-wishlist":
+        result = delete_from_wishlist(request, db, SECRET_KEY)
+    elif path == "/clear-wishlist":
+        result = clear_wishlist(request, db, SECRET_KEY)
+    elif path == "/move-from-wishlist-to-cart":
+        result = move_wishlist_to_cart(request, db, SECRET_KEY)
+    elif path == "/checkout-items":
+        result = checkout_items(request, db, SECRET_KEY)
+    elif path == "/move-checkout-to-cart":
+        result = move_checkout_to_cart(request, db, SECRET_KEY)
+    elif path == "/process-checkout":
+        result = process_checkout(request, db, SECRET_KEY)
+    elif path == "/confirm-order":
+        result = confirm_order(request, db, SECRET_KEY)
+    elif path == "/cancel-order":
+        result = cancel_order(request, db, SECRET_KEY)
+    elif path == "/set-order-address":
+        result = set_order_address(request, db, SECRET_KEY)
+    elif path == "/confirm-delivery":
+        result = confirm_delivery(request, db, SECRET_KEY)
+    elif path == "/confirm-payment":
+        result = confirm_payment(request, db, SECRET_KEY)
+    elif path == "/get-quote":
+        result = request_quote(request, db, SECRET_KEY)
+    else:
+        result = (jsonify({"error": "Endpoint not found"}), 404)
 
-    if path == "/login":
-        return login(request_json)
-
-    if path == ("/add-address"):
-        return add_address(request_json)
-
-    if path == "/edit-address":
-        return edit_address(request_json)
-
-    if path == "/list-addresses":
-        return list_addresses(request_json)
-
-    if path == "/delete-address":
-        return delete_address(request_json)
-
-    if path == "/add-notification":
-        return add_notification(request_json)
-
-    if path == "/list-notifications":
-        return list_notifications(request_json)
-
-    if path == "/mark-notification-read":
-        return mark_notification_read(request_json)
-
-    if path == "/add-category":
-        return add_category(request_json)
-
-    if path == "/list-categories":
-        return list_categories(request_json)
-
-    if path == "/edit-category":
-        return edit_category(request_json)
-
-    if path == "/delete-category":
-        return delete_category(request_json)
-
-    if path == "/add-subcategory":
-        return add_subcategory(request_json)
-
-    if path == "/edit-subcategory":
-        return edit_subcategory(request_json)
-
-    if path == "/delete-subcategory":
-        return delete_subcategory(request_json)
-
-    if path == "/list-subcategories":
-        return list_subcategories(request_json)
-
-    if path == "/create-product":
-        return create_product(request)
-    
-    if path == "/get-product":
-        return get_product(request, db)
-
-    if path == "/get-all-products":
-        return get_all_products(request, db)
-
-    if path == "/delete-product":
-        return delete_product(request, db, bucket, SECRET_KEY)
-
-    if path == "/add-product-images":
-        return add_product_images(request, db, bucket, SECRET_KEY)
-
-    if path == "/delete-product-image":
-        return delete_product_images(request, db, bucket, SECRET_KEY)
-
-    if path == "/batch-product-upload":
-        return batch_upload_products(request, db, bucket, SECRET_KEY)
-
-    if path == "/get-cart-items":
-        return get_cart_items(request, db, SECRET_KEY)
-
-    if path == "/add-to-cart":
-        return add_to_cart(request, db, SECRET_KEY)
-
-    if path == "/update-cart-quantity":
-        return update_cart_quantity(request, db, SECRET_KEY)
-
-    if path == "/delete-from-cart":
-        return delete_from_cart(request, db, SECRET_KEY)
-
-    if path == "/clear-cart":
-        return clear_cart(request, db, SECRET_KEY)
-
-    if path == "/add-to-wishlist":
-        return add_to_wishlist(request, db, SECRET_KEY)
-
-    if path == "/delete-from-wishlist":
-        return delete_from_wishlist(request, db, SECRET_KEY)
-
-    if path == "/clear-wishlist":
-        return clear_wishlist(request, db, SECRET_KEY)
-
-    if path == "/move-from-wishlist-to-cart":
-        return move_wishlist_to_cart(request, db, SECRET_KEY)
-
-    if path == "/checkout-items":
-        return checkout_items(request, db, SECRET_KEY)
-
-    if path == "/move-checkout-to-cart":
-        return move_checkout_to_cart(request, db, SECRET_KEY)
-
-    if path == "/process-checkout":
-        return process_checkout(request, db, SECRET_KEY)
-
-    if path == "/confirm-order":
-        return confirm_order(request, db, SECRET_KEY)
-
-    if path == "/cancel-order":
-        return cancel_order(request, db, SECRET_KEY)
-
-    if path == "/set-order-address":
-        return set_order_address(request, db, SECRET_KEY)
-
-    if path == "/confirm-delivery":
-        return confirm_delivery(request, db, SECRET_KEY)
-
-    if path == "/confirm-payment":
-        return confirm_payment(request, db, SECRET_KEY)
-
-    if path == "/get-quote":
-        return request_quote(request, db, SECRET_KEY)
-
-    return jsonify({"error": "Endpoint not found"}), 404
+    return add_cors(result)
 
 
 # -----------------------------------------
