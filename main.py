@@ -162,6 +162,12 @@ def app(request):
         result = confirm_payment(request, db, SECRET_KEY)
     elif path == "/get-quote":
         result = request_quote(request, db, SECRET_KEY)
+    elif path == "/list-customers":
+        result = list_customers(request, db, SECRET_KEY)
+    elif path == "/list-quotes":
+        result = list_quotes(request, db, SECRET_KEY)
+    elif path == "/get-quote-detail":
+        result = get_quote_detail(request, db, SECRET_KEY)
     else:
         result = (jsonify({"error": "Endpoint not found"}), 404)
 
@@ -2873,6 +2879,133 @@ def request_quote(request, db, SECRET_KEY):
 
     except Exception as e:
         print("REQUEST QUOTE ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
+# LIST CUSTOMERS (Admin Only)
+# -----------------------------------------
+def list_customers(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
+
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        role = payload.get("role")
+        if role not in ["admin", "sub-admin", "super-admin"]:
+            return jsonify({"error": "Unauthorized"}), 403
+
+        customers = []
+        docs = db.collection("customers").stream()
+        for doc in docs:
+            customer = doc.to_dict()
+            customer["id"] = doc.id
+            customer.pop("password_hash", None)
+            customers.append(customer)
+
+        return jsonify({
+            "count": len(customers),
+            "customers": customers
+        }), 200
+
+    except Exception as e:
+        print("LIST CUSTOMERS ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
+# LIST QUOTES (Admin Only)
+# -----------------------------------------
+def list_quotes(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
+
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        role = payload.get("role")
+        if role not in ["admin", "sub-admin", "super-admin"]:
+            return jsonify({"error": "Unauthorized"}), 403
+
+        query = db.collection("quotes").order_by("created_at", direction=firestore.Query.DESCENDING)
+
+        status_filter = request.args.get("status")
+        if status_filter:
+            query = query.where("status", "==", status_filter)
+
+        quotes = []
+        for doc in query.stream():
+            quote = doc.to_dict()
+            quote["id"] = doc.id
+            quotes.append(quote)
+
+        return jsonify({
+            "count": len(quotes),
+            "quotes": quotes
+        }), 200
+
+    except Exception as e:
+        print("LIST QUOTES ERROR:", str(e))
+        print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
+# GET QUOTE DETAIL (Admin Only)
+# -----------------------------------------
+def get_quote_detail(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
+
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        role = payload.get("role")
+        if role not in ["admin", "sub-admin", "super-admin"]:
+            return jsonify({"error": "Unauthorized"}), 403
+
+        quote_id = request.args.get("quote_id")
+        if not quote_id:
+            return jsonify({"error": "quote_id query parameter is required"}), 400
+
+        doc = db.collection("quotes").document(quote_id).get()
+        if not doc.exists:
+            return jsonify({"error": "Quote not found"}), 404
+
+        quote = doc.to_dict()
+        quote["id"] = doc.id
+
+        return jsonify({"quote": quote}), 200
+
+    except Exception as e:
+        print("GET QUOTE DETAIL ERROR:", str(e))
         print(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
