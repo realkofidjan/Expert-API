@@ -193,6 +193,8 @@ def app(request):
         result = delete_subcategory(request_json)
     elif path == "/list-subcategories":
         result = list_subcategories(request_json)
+    elif path == "/edit-product":
+        result = edit_product(request)
     elif path == "/create-product":
         result = create_product(request)
     elif path == "/get-product":
@@ -1239,6 +1241,8 @@ def create_product(request):
                 "sku": sku,
                 "category_id": category_id,
                 "subcategory_id": subcategory_id,
+                "category_name": category_name,
+                "subcategory_name": subcategory_name,
                 "brand": brand,
                 "color": color,
                 "description": description,
@@ -1459,8 +1463,11 @@ def edit_product(request):
         # -------------------------
         allowed_fields = [
             "name",
+            "sku",
             "category_id",
             "subcategory_id",
+            "category_name",
+            "subcategory_name",
             "brand",
             "color",
             "description",
