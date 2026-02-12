@@ -253,6 +253,8 @@ def app(request):
         result = get_quote_detail(request, db, SECRET_KEY)
     elif path == "/get-logs":
         result = get_logs(request, db, SECRET_KEY)
+    elif path == "/change-user-role":
+        result = change_user_role(request, db, SECRET_KEY)
     elif path == "/dashboard-stats":
         result = dashboard_stats(request, db, SECRET_KEY)
     else:
@@ -338,7 +340,8 @@ def login(data):
     return jsonify({
         "message": "Login successful",
         "user_id": user_doc.id,
-        "token": token
+        "token": token,
+        "role": user["role"]
     }), 200
 
 
@@ -3496,8 +3499,8 @@ def get_logs(request, db, SECRET_KEY):
             return jsonify({"error": "Invalid token"}), 401
 
         role = payload.get("role")
-        if role not in ["admin", "sub-admin", "super-admin"]:
-            return jsonify({"error": "Unauthorized"}), 403
+        if role != "super-admin":
+            return jsonify({"error": "Unauthorized - super-admin access only"}), 403
 
         query = db.collection("audit_logs").order_by("timestamp", direction=firestore.Query.DESCENDING)
 
@@ -3536,6 +3539,59 @@ def get_logs(request, db, SECRET_KEY):
 # -----------------------------------------
 # DASHBOARD STATS
 # -----------------------------------------
+def change_user_role(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
+
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        role = payload.get("role")
+        if role != "super-admin":
+            return jsonify({"error": "Unauthorized - super-admin access only"}), 403
+
+        data = request.get_json()
+        target_user_id = data.get("target_user_id")
+        new_role = data.get("new_role")
+
+        if not target_user_id or not new_role:
+            return jsonify({"error": "target_user_id and new_role are required"}), 400
+
+        valid_roles = ["customer", "admin", "sub-admin", "super-admin"]
+        if new_role not in valid_roles:
+            return jsonify({"error": f"Invalid role. Must be one of: {', '.join(valid_roles)}"}), 400
+
+        user_ref = db.collection("users").document(target_user_id)
+        user_doc = user_ref.get()
+        if not user_doc.exists:
+            return jsonify({"error": "User not found"}), 404
+
+        old_role = user_doc.to_dict().get("role", "customer")
+        user_ref.update({"role": new_role})
+
+        log_action(
+            payload.get("user_id"),
+            payload.get("email"),
+            role,
+            "change_user_role",
+            {"target_user_id": target_user_id, "old_role": old_role, "new_role": new_role}
+        )
+
+        return jsonify({"message": f"Role updated from {old_role} to {new_role}", "new_role": new_role}), 200
+
+    except Exception as e:
+        print(f"CHANGE USER ROLE ERROR: {traceback.format_exc()}")
+        return jsonify({"error": str(e)}), 500
+
+
 def dashboard_stats(request, db, SECRET_KEY):
     try:
         auth_header = request.headers.get("Authorization")
