@@ -800,27 +800,6 @@ def add_category(data):
 # VIEW ALL CATEGORIES (ALL USERS)
 # -----------------------------------------
 def list_categories(_):
-    # Get Authorization header
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Authorization token required"}), 401
-
-    token = auth_header.split(" ")[1]
-
-    # Decode JWT token
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-        user_id = payload.get("user_id")
-    except jwt.ExpiredSignatureError:
-        return jsonify({"error": "Token has expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "Invalid token"}), 401
-
-    # Optional: check if user exists
-    user_ref = db.collection("customers").document(user_id)
-    if not user_ref.get().exists:
-        return jsonify({"error": "User not found"}), 404
-
     categories_ref = db.collection("categories")
     categories_docs = categories_ref.get()
 
