@@ -1076,19 +1076,6 @@ def delete_subcategory(data):
 # LIST SUBCATEGORIES FOR A CATEGORY
 # -----------------------------------------
 def list_subcategories(data):
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Authorization token required"}), 401
-
-    token = auth_header.split(" ")[1]
-
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-    except jwt.ExpiredSignatureError:
-        return jsonify({"error": "Token has expired"}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({"error": "Invalid token"}), 401
-
     category_id = data.get("category_id") or request.args.get("category_id")
     if not category_id:
         return jsonify({"error": "Missing field: category_id"}), 400
