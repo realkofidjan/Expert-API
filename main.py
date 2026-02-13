@@ -259,6 +259,26 @@ def app(request):
         result = change_user_role(request, db, SECRET_KEY)
     elif path == "/dashboard-stats":
         result = dashboard_stats(request, db, SECRET_KEY)
+    elif path == "/get-customer-profile":
+        result = get_customer_profile(request, db, SECRET_KEY)
+    elif path == "/update-customer-profile":
+        result = update_customer_profile(request, db, SECRET_KEY)
+    elif path == "/get-all-blogs":
+        result = get_all_blogs(request, db)
+    elif path == "/get-blog":
+        result = get_blog(request, db)
+    elif path == "/create-blog":
+        result = create_blog(request, db, SECRET_KEY)
+    elif path == "/subscribe-newsletter":
+        result = subscribe_newsletter(request, db)
+    elif path == "/submit-contact":
+        result = submit_contact(request, db)
+    elif path == "/submit-inquiry":
+        result = submit_inquiry(request, db, SECRET_KEY)
+    elif path == "/get-wishlist":
+        result = get_wishlist(request, db, SECRET_KEY)
+    elif path == "/apply-coupon":
+        result = apply_coupon(request, db, SECRET_KEY)
     else:
         result = (jsonify({"error": "Endpoint not found"}), 404)
 
@@ -3728,5 +3748,418 @@ def dashboard_stats(request, db, SECRET_KEY):
     except Exception as e:
         print("DASHBOARD STATS ERROR:", str(e))
         print(traceback.format_exc())
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
+# GET CUSTOMER PROFILE
+# -----------------------------------------
+def get_customer_profile(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
+
+        token = auth_header.split(" ")[1]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        user_id = payload.get("user_id")
+        if not user_id:
+            return jsonify({"error": "Invalid user token"}), 401
+
+        user_doc = db.collection("users").document(user_id).get()
+        if not user_doc.exists:
+            return jsonify({"error": "User not found"}), 404
+
+        user_data = user_doc.to_dict()
+        profile = {
+            "user_id": user_id,
+            "name": user_data.get("name", ""),
+            "email": user_data.get("email", ""),
+            "phone": user_data.get("phone", ""),
+            "location": user_data.get("location", ""),
+            "role": user_data.get("role", "customer"),
+            "created_at": user_data.get("created_at", ""),
+        }
+
+        return jsonify({"profile": profile}), 200
+
+    except Exception as e:
+        print("GET CUSTOMER PROFILE ERROR:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
+# UPDATE CUSTOMER PROFILE
+# -----------------------------------------
+def update_customer_profile(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
+
+        token = auth_header.split(" ")[1]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            return jsonify({"error": "Token expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"error": "Invalid token"}), 401
+
+        user_id = payload.get("user_id")
+        if not user_id:
+            return jsonify({"error": "Invalid user token"}), 401
+
+        data = request.get_json(silent=True) or {}
+
+        allowed_fields = ["name", "phone", "location"]
+        update_data = {}
+        for field in allowed_fields:
+            if field in data and data[field] is not None:
+                update_data[field] = data[field]
+
+        if not update_data:
+            return jsonify({"error": "No valid fields to update"}), 400
+
+        update_data["updated_at"] = firestore.SERVER_TIMESTAMP
+        db.collection("users").document(user_id).update(update_data)
+
+        log_action(user_id, payload.get("email"), payload.get("role", "customer"), "update_profile", {"fields": list(update_data.keys())})
+
+        return jsonify({"message": "Profile updated successfully"}), 200
+
+    except Exception as e:
+        print("UPDATE CUSTOMER PROFILE ERROR:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
+# GET ALL BLOGS
+# -----------------------------------------
+def get_all_blogs(request, db):
+    try:
+        limit = request.args.get("limit", default=50, type=int)
+        offset = request.args.get("offset", default=0, type=int)
+
+        query = db.collection("blog_posts").order_by("created_at", direction=firestore.Query.DESCENDING)
+
+        docs = list(query.stream())
+        total = len(docs)
+        paginated = docs[offset:offset + limit]
+
+        blogs = []
+        for doc in paginated:
+            blog = doc.to_dict()
+            blog["id"] = doc.id
+            blogs.append(blog)
+
+        return jsonify({"blogs": blogs, "total": total}), 200
+
+    except Exception as e:
+        print("GET ALL BLOGS ERROR:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
+# GET BLOG
+# -----------------------------------------
+def get_blog(request, db):
+    try:
+        blog_id = request.args.get("blog_id")
+        if not blog_id:
+            return jsonify({"error": "blog_id is required"}), 400
+
+        doc = db.collection("blog_posts").document(blog_id).get()
+        if not doc.exists:
+            return jsonify({"error": "Blog post not found"}), 404
+
+        blog = doc.to_dict()
+        blog["id"] = doc.id
+
+        return jsonify({"blog": blog}), 200
+
+    except Exception as e:
+        print("GET BLOG ERROR:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
+# CREATE BLOG (admin only)
+# -----------------------------------------
+def create_blog(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
+
+        token = auth_header.split(" ")[1]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except:
+            return jsonify({"error": "Invalid token"}), 401
+
+        role = payload.get("role", "")
+        if role not in ["admin", "sub-admin", "super-admin"]:
+            return jsonify({"error": "Admin access required"}), 403
+
+        data = request.get_json(silent=True) or {}
+
+        title = data.get("title", "").strip()
+        if not title:
+            return jsonify({"error": "Title is required"}), 400
+
+        blog_data = {
+            "title": title,
+            "content": data.get("content", ""),
+            "excerpt": data.get("excerpt", ""),
+            "author": data.get("author", payload.get("email", "")),
+            "image_url": data.get("image_url", ""),
+            "tags": data.get("tags", []),
+            "published": data.get("published", True),
+            "created_at": firestore.SERVER_TIMESTAMP,
+            "updated_at": firestore.SERVER_TIMESTAMP,
+        }
+
+        doc_ref = db.collection("blog_posts").add(blog_data)
+        blog_id = doc_ref[1].id
+
+        log_action(payload.get("user_id"), payload.get("email"), role, "create_blog", {"blog_id": blog_id, "title": title})
+
+        return jsonify({"message": "Blog post created", "blog_id": blog_id}), 201
+
+    except Exception as e:
+        print("CREATE BLOG ERROR:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
+# SUBSCRIBE NEWSLETTER
+# -----------------------------------------
+def subscribe_newsletter(request, db):
+    try:
+        data = request.get_json(silent=True) or {}
+        email = data.get("email", "").strip().lower()
+        if not email:
+            return jsonify({"error": "Email is required"}), 400
+
+        # Check for duplicate
+        existing = db.collection("newsletter_subscribers").where("email", "==", email).limit(1).stream()
+        if any(True for _ in existing):
+            return jsonify({"message": "Already subscribed"}), 200
+
+        sub_data = {
+            "email": email,
+            "source": data.get("source", "website"),
+            "subscribed_at": firestore.SERVER_TIMESTAMP,
+        }
+
+        db.collection("newsletter_subscribers").add(sub_data)
+
+        return jsonify({"message": "Subscribed successfully"}), 201
+
+    except Exception as e:
+        print("SUBSCRIBE NEWSLETTER ERROR:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
+# SUBMIT CONTACT
+# -----------------------------------------
+def submit_contact(request, db):
+    try:
+        data = request.get_json(silent=True) or {}
+
+        name = data.get("name", "").strip()
+        email = data.get("email", "").strip()
+        message = data.get("message", "").strip()
+
+        if not name or not email or not message:
+            return jsonify({"error": "Name, email, and message are required"}), 400
+
+        contact_data = {
+            "name": name,
+            "email": email,
+            "phone": data.get("phone", ""),
+            "subject": data.get("subject", ""),
+            "message": message,
+            "status": "new",
+            "created_at": firestore.SERVER_TIMESTAMP,
+        }
+
+        db.collection("contact_messages").add(contact_data)
+
+        return jsonify({"message": "Contact message submitted successfully"}), 201
+
+    except Exception as e:
+        print("SUBMIT CONTACT ERROR:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
+# SUBMIT INQUIRY (authenticated)
+# -----------------------------------------
+def submit_inquiry(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
+
+        token = auth_header.split(" ")[1]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except:
+            return jsonify({"error": "Invalid token"}), 401
+
+        user_id = payload.get("user_id")
+        data = request.get_json(silent=True) or {}
+
+        inquiry_data = {
+            "user_id": user_id,
+            "email": data.get("email", payload.get("email", "")),
+            "name": data.get("name", ""),
+            "phone": data.get("phone", ""),
+            "company": data.get("company", ""),
+            "service_type": data.get("service_type", ""),
+            "description": data.get("description", ""),
+            "budget_range": data.get("budget_range", ""),
+            "timeline": data.get("timeline", ""),
+            "location": data.get("location", ""),
+            "preferred_contact_method": data.get("preferred_contact_method", "email"),
+            "cart_items": data.get("cart_items", []),
+            "status": "pending",
+            "created_at": firestore.SERVER_TIMESTAMP,
+        }
+
+        doc_ref = db.collection("service_inquiries").add(inquiry_data)
+        inquiry_id = doc_ref[1].id
+
+        log_action(user_id, payload.get("email"), payload.get("role", "customer"), "submit_inquiry", {"inquiry_id": inquiry_id})
+
+        return jsonify({"message": "Inquiry submitted successfully", "inquiry_id": inquiry_id}), 201
+
+    except Exception as e:
+        print("SUBMIT INQUIRY ERROR:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
+# GET WISHLIST
+# -----------------------------------------
+def get_wishlist(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
+
+        token = auth_header.split(" ")[1]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except:
+            return jsonify({"error": "Invalid token"}), 401
+
+        customer_id = payload.get("user_id")
+        if not customer_id:
+            return jsonify({"error": "Invalid user"}), 401
+
+        wishlist_ref = db.collection("customers").document(customer_id).collection("wishlist")
+        wishlist_docs = list(wishlist_ref.stream())
+
+        wishlist_items = []
+        for doc in wishlist_docs:
+            item = doc.to_dict()
+            product_id = doc.id
+
+            # Fetch product details
+            product_doc = db.collection("products").document(product_id).get()
+            if product_doc.exists:
+                product_data = product_doc.to_dict()
+                wishlist_items.append({
+                    "product_id": product_id,
+                    "name": product_data.get("name", ""),
+                    "price": product_data.get("price", 0),
+                    "images": product_data.get("images", []),
+                    "sku": product_data.get("sku", ""),
+                    "stock": product_data.get("stock", 0),
+                    "added_at": item.get("added_at", ""),
+                })
+
+        return jsonify({"wishlist": wishlist_items}), 200
+
+    except Exception as e:
+        print("GET WISHLIST ERROR:", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# -----------------------------------------
+# APPLY COUPON
+# -----------------------------------------
+def apply_coupon(request, db, SECRET_KEY):
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return jsonify({"error": "Authorization token required"}), 401
+
+        token = auth_header.split(" ")[1]
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except:
+            return jsonify({"error": "Invalid token"}), 401
+
+        data = request.get_json(silent=True) or {}
+        code = data.get("code", "").strip().upper()
+        cart_total = data.get("cart_total", 0)
+
+        if not code:
+            return jsonify({"error": "Coupon code is required"}), 400
+
+        # Look up coupon in discounts collection
+        coupons = db.collection("discounts").where("code", "==", code).limit(1).stream()
+        coupon_doc = None
+        for doc in coupons:
+            coupon_doc = doc
+            break
+
+        if not coupon_doc:
+            return jsonify({"error": "Invalid coupon code"}), 404
+
+        coupon = coupon_doc.to_dict()
+
+        # Check if active
+        if not coupon.get("active", False):
+            return jsonify({"error": "This coupon is no longer active"}), 400
+
+        # Check minimum order
+        min_order = coupon.get("min_order", 0)
+        if cart_total < min_order:
+            return jsonify({"error": f"Minimum order of {min_order} required for this coupon"}), 400
+
+        # Calculate discount
+        discount_type = coupon.get("discount_type", "percentage")
+        discount_value = coupon.get("discount_value", 0)
+
+        if discount_type == "percentage":
+            discount_amount = round(cart_total * (discount_value / 100), 2)
+            max_discount = coupon.get("max_discount", None)
+            if max_discount and discount_amount > max_discount:
+                discount_amount = max_discount
+        else:
+            discount_amount = min(discount_value, cart_total)
+
+        return jsonify({
+            "valid": True,
+            "code": code,
+            "discount_type": discount_type,
+            "discount_value": discount_value,
+            "discount_amount": discount_amount,
+            "new_total": round(cart_total - discount_amount, 2),
+        }), 200
+
+    except Exception as e:
+        print("APPLY COUPON ERROR:", e)
         return jsonify({"error": str(e)}), 500
 
